@@ -1,0 +1,345 @@
+import numpy as np
+import json
+import pickle
+from typing import List, Tuple, Optional, Dict, Any
+import math
+import re
+
+class Matrix:
+    """Custom matrix class for neural network operations"""
+    
+    def __init__(self, data):
+        self.data = np.array(data, dtype=np.float32)
+        self.shape = self.data.shape
+    
+    def __matmul__(self, other):
+        return Matrix(np.matmul(self.data, other.data))
+    
+    def __add__(self, other):
+        if isinstance(other, (int, float)):
+            return Matrix(self.data + other)
+        return Matrix(self.data + other.data)
+    
+    def __mul__(self, other):
+        if isinstance(other, (int, float)):
+            return Matrix(self.data * other)
+        return Matrix(self.data * other.data)
+    
+    def __sub__(self, other):
+        if isinstance(other, (int, float)):
+            return Matrix(self.data - other)
+        return Matrix(self.data - other.data)
+    
+    def transpose(self):
+        return Matrix(self.data.T)
+    
+    def softmax(self):
+        exp_data = np.exp(self.data - np.max(self.data, axis=-1, keepdims=True))
+        return Matrix(exp_data / np.sum(exp_data, axis=-1, keepdims=True))
+    
+    def relu(self):
+        return Matrix(np.maximum(0, self.data))
+    
+    def tanh(self):
+        return Matrix(np.tanh(self.data))
+    
+    def sigmoid(self):
+        return Matrix(1 / (1 + np.exp(-self.data)))
+
+class Tokenizer:
+    """Simple tokenizer for text processing"""
+    
+    def __init__(self):
+        self.vocab = {}
+        self.reverse_vocab = {}
+        self.vocab_size = 0
+        
+    def build_vocab(self, texts: List[str]):
+        """Build vocabulary from training texts"""
+        all_tokens = set()
+        
+        for text in texts:
+            # Simple word-level tokenization
+            tokens = self._tokenize(text)
+            all_tokens.update(tokens)
+        
+        # Add special tokens
+        special_tokens = ['<PAD>', '<UNK>', '<START>', '<END>']
+        all_tokens = special_tokens + sorted(list(all_tokens))
+        
+        self.vocab = {token: i for i, token in enumerate(all_tokens)}
+        self.reverse_vocab = {i: token for token, i in self.vocab.items()}
+        self.vocab_size = len(self.vocab)
+        
+    def _tokenize(self, text: str) -> List[str]:
+        """Simple tokenization - can be improved"""
+        # Basic word tokenization with punctuation handling
+        text = text.lower()
+        tokens = re.findall(r'\b\w+\b|[^\w\s]', text)
+        return tokens
+    
+    def encode(self, text: str) -> List[int]:
+        """Convert text to token IDs"""
+        tokens = self._tokenize(text)
+        return [self.vocab.get(token, self.vocab['<UNK>']) for token in tokens]
+    
+    def decode(self, token_ids: List[int]) -> str:
+        """Convert token IDs back to text"""
+        tokens = [self.reverse_vocab.get(id, '<UNK>') for id in token_ids]
+        return ' '.join(tokens)
+
+class Attention:
+    """Multi-head attention mechanism"""
+    
+    def __init__(self, d_model: int, num_heads: int):
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.d_k = d_model // num_heads
+        
+        # Initialize weight matrices
+        self.W_q = Matrix(np.random.randn(d_model, d_model) * 0.1)
+        self.W_k = Matrix(np.random.randn(d_model, d_model) * 0.1)
+        self.W_v = Matrix(np.random.randn(d_model, d_model) * 0.1)
+        self.W_o = Matrix(np.random.randn(d_model, d_model) * 0.1)
+    
+    def forward(self, x: Matrix) -> Matrix:
+        """Forward pass through attention"""
+        batch_size, seq_len, d_model = x.shape
+        
+        # Linear projections
+        Q = x @ self.W_q
+        K = x @ self.W_k
+        V = x @ self.W_v
+        
+        # Reshape for multi-head attention
+        Q = Matrix(Q.data.reshape(batch_size, seq_len, self.num_heads, self.d_k).transpose(0, 2, 1, 3))
+        K = Matrix(K.data.reshape(batch_size, seq_len, self.num_heads, self.d_k).transpose(0, 2, 1, 3))
+        V = Matrix(V.data.reshape(batch_size, seq_len, self.num_heads, self.d_k).transpose(0, 2, 1, 3))
+        
+        # Scaled dot-product attention
+        scores = Q @ K.transpose()
+        scores = scores * (1.0 / math.sqrt(self.d_k))
+        
+        # Apply softmax
+        attn_weights = scores.softmax()
+        
+        # Apply attention to values
+        out = attn_weights @ V
+        
+        # Concatenate heads
+        out_data = out.data.transpose(0, 2, 1, 3).reshape(batch_size, seq_len, d_model)
+        out = Matrix(out_data)
+        
+        # Final linear projection
+        return out @ self.W_o
+
+class FeedForward:
+    """Feed-forward network"""
+    
+    def __init__(self, d_model: int, d_ff: int):
+        self.W1 = Matrix(np.random.randn(d_model, d_ff) * 0.1)
+        self.b1 = Matrix(np.zeros((1, d_ff)))
+        self.W2 = Matrix(np.random.randn(d_ff, d_model) * 0.1)
+        self.b2 = Matrix(np.zeros((1, d_model)))
+    
+    def forward(self, x: Matrix) -> Matrix:
+        """Forward pass"""
+        hidden = (x @ self.W1 + self.b1).relu()
+        return hidden @ self.W2 + self.b2
+
+class TransformerBlock:
+    """Single transformer block"""
+    
+    def __init__(self, d_model: int, num_heads: int, d_ff: int):
+        self.attention = Attention(d_model, num_heads)
+        self.feed_forward = FeedForward(d_model, d_ff)
+        self.layer_norm1 = LayerNorm(d_model)
+        self.layer_norm2 = LayerNorm(d_model)
+    
+    def forward(self, x: Matrix) -> Matrix:
+        """Forward pass with residual connections"""
+        # Self-attention with residual connection
+        attn_out = self.attention.forward(x)
+        x = self.layer_norm1.forward(x + attn_out)
+        
+        # Feed-forward with residual connection
+        ff_out = self.feed_forward.forward(x)
+        x = self.layer_norm2.forward(x + ff_out)
+        
+        return x
+
+class LayerNorm:
+    """Layer normalization"""
+    
+    def __init__(self, d_model: int):
+        self.gamma = Matrix(np.ones((1, d_model)))
+        self.beta = Matrix(np.zeros((1, d_model)))
+        self.eps = 1e-6
+    
+    def forward(self, x: Matrix) -> Matrix:
+        """Forward pass"""
+        mean = Matrix(np.mean(x.data, axis=-1, keepdims=True))
+        var = Matrix(np.var(x.data, axis=-1, keepdims=True))
+        
+        normalized = (x - mean) * Matrix(1.0 / np.sqrt(var.data + self.eps))
+        return normalized * self.gamma + self.beta
+
+class SimpleAI:
+    """Main AI model class"""
+    
+    def __init__(self, vocab_size: int, d_model: int = 256, num_heads: int = 8, 
+                 num_layers: int = 6, d_ff: int = 1024, max_seq_len: int = 512):
+        self.vocab_size = vocab_size
+        self.d_model = d_model
+        self.max_seq_len = max_seq_len
+        
+        # Embedding layers
+        self.token_embedding = Matrix(np.random.randn(vocab_size, d_model) * 0.1)
+        self.position_embedding = Matrix(np.random.randn(max_seq_len, d_model) * 0.1)
+        
+        # Transformer blocks
+        self.transformer_blocks = [
+            TransformerBlock(d_model, num_heads, d_ff) 
+            for _ in range(num_layers)
+        ]
+        
+        # Output layer
+        self.layer_norm = LayerNorm(d_model)
+        self.output_projection = Matrix(np.random.randn(d_model, vocab_size) * 0.1)
+        
+        self.tokenizer = Tokenizer()
+    
+    def embed(self, token_ids: List[int]) -> Matrix:
+        """Create embeddings for input tokens"""
+        seq_len = len(token_ids)
+        
+        # Token embeddings
+        token_embeds = Matrix(np.array([self.token_embedding.data[id] for id in token_ids]))
+        
+        # Position embeddings
+        pos_embeds = Matrix(self.position_embedding.data[:seq_len])
+        
+        # Add token and position embeddings
+        return token_embeds + pos_embeds
+    
+    def forward(self, token_ids: List[int]) -> Matrix:
+        """Forward pass through the model"""
+        # Get embeddings
+        x = self.embed(token_ids)
+        x = Matrix(x.data.reshape(1, len(token_ids), self.d_model))  # Add batch dimension
+        
+        # Pass through transformer blocks
+        for block in self.transformer_blocks:
+            x = block.forward(x)
+        
+        # Layer norm and output projection
+        x = self.layer_norm.forward(x)
+        logits = x @ self.output_projection
+        
+        return logits
+    
+    def generate_text(self, prompt: str, max_length: int = 50, temperature: float = 1.0) -> str:
+        """Generate text given a prompt"""
+        token_ids = self.tokenizer.encode(prompt)
+        generated_ids = token_ids.copy()
+        
+        for _ in range(max_length):
+            if len(generated_ids) >= self.max_seq_len:
+                break
+                
+            # Get logits for next token
+            logits = self.forward(generated_ids)
+            next_token_logits = logits.data[0, -1, :] / temperature
+            
+            # Sample next token (simple sampling)
+            probs = np.exp(next_token_logits) / np.sum(np.exp(next_token_logits))
+            next_token_id = np.random.choice(len(probs), p=probs)
+            
+            generated_ids.append(next_token_id)
+            
+            # Stop if we hit end token
+            if next_token_id == self.tokenizer.vocab.get('<END>', -1):
+                break
+        
+        return self.tokenizer.decode(generated_ids)
+    
+    def train_step(self, texts: List[str], learning_rate: float = 0.001):
+        """Simple training step (placeholder for full implementation)"""
+        # This is a simplified version - full training would require:
+        # - Proper loss calculation
+        # - Backpropagation
+        # - Gradient updates
+        # - Batch processing
+        print(f"Training on {len(texts)} texts...")
+        print("Note: Full training implementation requires backpropagation")
+    
+    def save_model(self, filepath: str):
+        """Save model to file"""
+        model_data = {
+            'vocab_size': self.vocab_size,
+            'd_model': self.d_model,
+            'max_seq_len': self.max_seq_len,
+            'tokenizer_vocab': self.tokenizer.vocab,
+            # Add other model parameters here
+        }
+        
+        with open(filepath, 'wb') as f:
+            pickle.dump(model_data, f)
+        
+        print(f"Model saved to {filepath}")
+    
+    def load_model(self, filepath: str):
+        """Load model from file"""
+        with open(filepath, 'rb') as f:
+            model_data = pickle.load(f)
+        
+        self.tokenizer.vocab = model_data['tokenizer_vocab']
+        self.tokenizer.reverse_vocab = {v: k for k, v in self.tokenizer.vocab.items()}
+        self.tokenizer.vocab_size = len(self.tokenizer.vocab)
+        
+        print(f"Model loaded from {filepath}")
+
+# Example usage and testing
+if __name__ == "__main__":
+    # Sample training data
+    training_texts = [
+        "Hello, how are you today?",
+        "The weather is nice outside.",
+        "I love programming and artificial intelligence.",
+        "Python is a great programming language.",
+        "Machine learning is fascinating.",
+    ]
+    
+    # Initialize tokenizer and build vocabulary
+    tokenizer = Tokenizer()
+    tokenizer.build_vocab(training_texts)
+    
+    print(f"Vocabulary size: {tokenizer.vocab_size}")
+    print(f"Sample tokens: {list(tokenizer.vocab.keys())[:10]}")
+    
+    # Create AI model
+    ai = SimpleAI(vocab_size=tokenizer.vocab_size, d_model=128, num_layers=2)
+    ai.tokenizer = tokenizer
+    
+    # Test text generation
+    print("\n--- Text Generation Test ---")
+    prompt = "Hello"
+    generated = ai.generate_text(prompt, max_length=10)
+    print(f"Prompt: '{prompt}'")
+    print(f"Generated: '{generated}'")
+    
+    # Test encoding/decoding
+    print("\n--- Tokenization Test ---")
+    test_text = "Hello world!"
+    encoded = tokenizer.encode(test_text)
+    decoded = tokenizer.decode(encoded)
+    print(f"Original: '{test_text}'")
+    print(f"Encoded: {encoded}")
+    print(f"Decoded: '{decoded}'")
+    
+    print("\n--- Model Architecture ---")
+    print(f"Model parameters:")
+    print(f"- Vocabulary size: {ai.vocab_size}")
+    print(f"- Model dimension: {ai.d_model}")
+    print(f"- Number of layers: {len(ai.transformer_blocks)}")
+    print(f"- Max sequence length: {ai.max_seq_len}")

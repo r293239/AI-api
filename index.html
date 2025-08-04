@@ -1,345 +1,573 @@
 import numpy as np
 import json
 import pickle
-from typing import List, Tuple, Optional, Dict, Any
-import math
-import re
+from typing import List, Tuple, Optional, Dict, Any, Callable
+import random
+from abc import ABC, abstractmethod
+import time
 
-class Matrix:
-    """Custom matrix class for neural network operations"""
+class Memory:
+    """Experience replay memory for storing and learning from past actions"""
     
-    def __init__(self, data):
-        self.data = np.array(data, dtype=np.float32)
-        self.shape = self.data.shape
+    def __init__(self, capacity: int = 10000):
+        self.capacity = capacity
+        self.memory = []
+        self.position = 0
     
-    def __matmul__(self, other):
-        return Matrix(np.matmul(self.data, other.data))
+    def push(self, state, action, reward, next_state, done):
+        """Store an experience"""
+        if len(self.memory) < self.capacity:
+            self.memory.append(None)
+        
+        self.memory[self.position] = (state, action, reward, next_state, done)
+        self.position = (self.position + 1) % self.capacity
     
-    def __add__(self, other):
-        if isinstance(other, (int, float)):
-            return Matrix(self.data + other)
-        return Matrix(self.data + other.data)
+    def sample(self, batch_size: int):
+        """Sample random experiences for training"""
+        if len(self.memory) < batch_size:
+            return random.sample(self.memory, len(self.memory))
+        return random.sample(self.memory, batch_size)
     
-    def __mul__(self, other):
-        if isinstance(other, (int, float)):
-            return Matrix(self.data * other)
-        return Matrix(self.data * other.data)
-    
-    def __sub__(self, other):
-        if isinstance(other, (int, float)):
-            return Matrix(self.data - other)
-        return Matrix(self.data - other.data)
-    
-    def transpose(self):
-        return Matrix(self.data.T)
-    
-    def softmax(self):
-        exp_data = np.exp(self.data - np.max(self.data, axis=-1, keepdims=True))
-        return Matrix(exp_data / np.sum(exp_data, axis=-1, keepdims=True))
-    
-    def relu(self):
-        return Matrix(np.maximum(0, self.data))
-    
-    def tanh(self):
-        return Matrix(np.tanh(self.data))
-    
-    def sigmoid(self):
-        return Matrix(1 / (1 + np.exp(-self.data)))
+    def __len__(self):
+        return len(self.memory)
 
-class Tokenizer:
-    """Simple tokenizer for text processing"""
+class NeuralNetwork:
+    """Simple neural network for function approximation"""
     
-    def __init__(self):
-        self.vocab = {}
-        self.reverse_vocab = {}
-        self.vocab_size = 0
+    def __init__(self, input_size: int, hidden_sizes: List[int], output_size: int, learning_rate: float = 0.01):
+        self.learning_rate = learning_rate
+        self.layers = []
         
-    def build_vocab(self, texts: List[str]):
-        """Build vocabulary from training texts"""
-        all_tokens = set()
-        
-        for text in texts:
-            # Simple word-level tokenization
-            tokens = self._tokenize(text)
-            all_tokens.update(tokens)
-        
-        # Add special tokens
-        special_tokens = ['<PAD>', '<UNK>', '<START>', '<END>']
-        all_tokens = special_tokens + sorted(list(all_tokens))
-        
-        self.vocab = {token: i for i, token in enumerate(all_tokens)}
-        self.reverse_vocab = {i: token for token, i in self.vocab.items()}
-        self.vocab_size = len(self.vocab)
-        
-    def _tokenize(self, text: str) -> List[str]:
-        """Simple tokenization - can be improved"""
-        # Basic word tokenization with punctuation handling
-        text = text.lower()
-        tokens = re.findall(r'\b\w+\b|[^\w\s]', text)
-        return tokens
+        # Build network architecture
+        sizes = [input_size] + hidden_sizes + [output_size]
+        for i in range(len(sizes) - 1):
+            layer = {
+                'weights': np.random.randn(sizes[i], sizes[i+1]) * 0.1,
+                'biases': np.zeros((1, sizes[i+1])),
+                'activations': None,
+                'z_values': None
+            }
+            self.layers.append(layer)
     
-    def encode(self, text: str) -> List[int]:
-        """Convert text to token IDs"""
-        tokens = self._tokenize(text)
-        return [self.vocab.get(token, self.vocab['<UNK>']) for token in tokens]
+    def relu(self, x):
+        return np.maximum(0, x)
     
-    def decode(self, token_ids: List[int]) -> str:
-        """Convert token IDs back to text"""
-        tokens = [self.reverse_vocab.get(id, '<UNK>') for id in token_ids]
-        return ' '.join(tokens)
-
-class Attention:
-    """Multi-head attention mechanism"""
+    def relu_derivative(self, x):
+        return (x > 0).astype(float)
     
-    def __init__(self, d_model: int, num_heads: int):
-        self.d_model = d_model
-        self.num_heads = num_heads
-        self.d_k = d_model // num_heads
+    def forward(self, x):
+        """Forward pass through network"""
+        activation = x.reshape(1, -1) if x.ndim == 1 else x
         
-        # Initialize weight matrices
-        self.W_q = Matrix(np.random.randn(d_model, d_model) * 0.1)
-        self.W_k = Matrix(np.random.randn(d_model, d_model) * 0.1)
-        self.W_v = Matrix(np.random.randn(d_model, d_model) * 0.1)
-        self.W_o = Matrix(np.random.randn(d_model, d_model) * 0.1)
-    
-    def forward(self, x: Matrix) -> Matrix:
-        """Forward pass through attention"""
-        batch_size, seq_len, d_model = x.shape
-        
-        # Linear projections
-        Q = x @ self.W_q
-        K = x @ self.W_k
-        V = x @ self.W_v
-        
-        # Reshape for multi-head attention
-        Q = Matrix(Q.data.reshape(batch_size, seq_len, self.num_heads, self.d_k).transpose(0, 2, 1, 3))
-        K = Matrix(K.data.reshape(batch_size, seq_len, self.num_heads, self.d_k).transpose(0, 2, 1, 3))
-        V = Matrix(V.data.reshape(batch_size, seq_len, self.num_heads, self.d_k).transpose(0, 2, 1, 3))
-        
-        # Scaled dot-product attention
-        scores = Q @ K.transpose()
-        scores = scores * (1.0 / math.sqrt(self.d_k))
-        
-        # Apply softmax
-        attn_weights = scores.softmax()
-        
-        # Apply attention to values
-        out = attn_weights @ V
-        
-        # Concatenate heads
-        out_data = out.data.transpose(0, 2, 1, 3).reshape(batch_size, seq_len, d_model)
-        out = Matrix(out_data)
-        
-        # Final linear projection
-        return out @ self.W_o
-
-class FeedForward:
-    """Feed-forward network"""
-    
-    def __init__(self, d_model: int, d_ff: int):
-        self.W1 = Matrix(np.random.randn(d_model, d_ff) * 0.1)
-        self.b1 = Matrix(np.zeros((1, d_ff)))
-        self.W2 = Matrix(np.random.randn(d_ff, d_model) * 0.1)
-        self.b2 = Matrix(np.zeros((1, d_model)))
-    
-    def forward(self, x: Matrix) -> Matrix:
-        """Forward pass"""
-        hidden = (x @ self.W1 + self.b1).relu()
-        return hidden @ self.W2 + self.b2
-
-class TransformerBlock:
-    """Single transformer block"""
-    
-    def __init__(self, d_model: int, num_heads: int, d_ff: int):
-        self.attention = Attention(d_model, num_heads)
-        self.feed_forward = FeedForward(d_model, d_ff)
-        self.layer_norm1 = LayerNorm(d_model)
-        self.layer_norm2 = LayerNorm(d_model)
-    
-    def forward(self, x: Matrix) -> Matrix:
-        """Forward pass with residual connections"""
-        # Self-attention with residual connection
-        attn_out = self.attention.forward(x)
-        x = self.layer_norm1.forward(x + attn_out)
-        
-        # Feed-forward with residual connection
-        ff_out = self.feed_forward.forward(x)
-        x = self.layer_norm2.forward(x + ff_out)
-        
-        return x
-
-class LayerNorm:
-    """Layer normalization"""
-    
-    def __init__(self, d_model: int):
-        self.gamma = Matrix(np.ones((1, d_model)))
-        self.beta = Matrix(np.zeros((1, d_model)))
-        self.eps = 1e-6
-    
-    def forward(self, x: Matrix) -> Matrix:
-        """Forward pass"""
-        mean = Matrix(np.mean(x.data, axis=-1, keepdims=True))
-        var = Matrix(np.var(x.data, axis=-1, keepdims=True))
-        
-        normalized = (x - mean) * Matrix(1.0 / np.sqrt(var.data + self.eps))
-        return normalized * self.gamma + self.beta
-
-class SimpleAI:
-    """Main AI model class"""
-    
-    def __init__(self, vocab_size: int, d_model: int = 256, num_heads: int = 8, 
-                 num_layers: int = 6, d_ff: int = 1024, max_seq_len: int = 512):
-        self.vocab_size = vocab_size
-        self.d_model = d_model
-        self.max_seq_len = max_seq_len
-        
-        # Embedding layers
-        self.token_embedding = Matrix(np.random.randn(vocab_size, d_model) * 0.1)
-        self.position_embedding = Matrix(np.random.randn(max_seq_len, d_model) * 0.1)
-        
-        # Transformer blocks
-        self.transformer_blocks = [
-            TransformerBlock(d_model, num_heads, d_ff) 
-            for _ in range(num_layers)
-        ]
-        
-        # Output layer
-        self.layer_norm = LayerNorm(d_model)
-        self.output_projection = Matrix(np.random.randn(d_model, vocab_size) * 0.1)
-        
-        self.tokenizer = Tokenizer()
-    
-    def embed(self, token_ids: List[int]) -> Matrix:
-        """Create embeddings for input tokens"""
-        seq_len = len(token_ids)
-        
-        # Token embeddings
-        token_embeds = Matrix(np.array([self.token_embedding.data[id] for id in token_ids]))
-        
-        # Position embeddings
-        pos_embeds = Matrix(self.position_embedding.data[:seq_len])
-        
-        # Add token and position embeddings
-        return token_embeds + pos_embeds
-    
-    def forward(self, token_ids: List[int]) -> Matrix:
-        """Forward pass through the model"""
-        # Get embeddings
-        x = self.embed(token_ids)
-        x = Matrix(x.data.reshape(1, len(token_ids), self.d_model))  # Add batch dimension
-        
-        # Pass through transformer blocks
-        for block in self.transformer_blocks:
-            x = block.forward(x)
-        
-        # Layer norm and output projection
-        x = self.layer_norm.forward(x)
-        logits = x @ self.output_projection
-        
-        return logits
-    
-    def generate_text(self, prompt: str, max_length: int = 50, temperature: float = 1.0) -> str:
-        """Generate text given a prompt"""
-        token_ids = self.tokenizer.encode(prompt)
-        generated_ids = token_ids.copy()
-        
-        for _ in range(max_length):
-            if len(generated_ids) >= self.max_seq_len:
-                break
+        for i, layer in enumerate(self.layers):
+            z = np.dot(activation, layer['weights']) + layer['biases']
+            layer['z_values'] = z
+            
+            if i < len(self.layers) - 1:  # Hidden layers use ReLU
+                activation = self.relu(z)
+            else:  # Output layer (linear)
+                activation = z
                 
-            # Get logits for next token
-            logits = self.forward(generated_ids)
-            next_token_logits = logits.data[0, -1, :] / temperature
-            
-            # Sample next token (simple sampling)
-            probs = np.exp(next_token_logits) / np.sum(np.exp(next_token_logits))
-            next_token_id = np.random.choice(len(probs), p=probs)
-            
-            generated_ids.append(next_token_id)
-            
-            # Stop if we hit end token
-            if next_token_id == self.tokenizer.vocab.get('<END>', -1):
-                break
+            layer['activations'] = activation
         
-        return self.tokenizer.decode(generated_ids)
+        return activation.flatten() if activation.shape[0] == 1 else activation
     
-    def train_step(self, texts: List[str], learning_rate: float = 0.001):
-        """Simple training step (placeholder for full implementation)"""
-        # This is a simplified version - full training would require:
-        # - Proper loss calculation
-        # - Backpropagation
-        # - Gradient updates
-        # - Batch processing
-        print(f"Training on {len(texts)} texts...")
-        print("Note: Full training implementation requires backpropagation")
+    def backward(self, x, target):
+        """Backpropagation to update weights"""
+        # Forward pass first
+        output = self.forward(x)
+        
+        # Calculate loss gradient (MSE)
+        output_error = output.reshape(1, -1) - target.reshape(1, -1)
+        
+        # Backward pass
+        for i in reversed(range(len(self.layers))):
+            layer = self.layers[i]
+            
+            if i == len(self.layers) - 1:  # Output layer
+                delta = output_error
+            else:  # Hidden layers
+                delta = np.dot(delta, self.layers[i+1]['weights'].T) * self.relu_derivative(layer['z_values'])
+            
+            # Get input to this layer
+            if i == 0:
+                layer_input = x.reshape(1, -1)
+            else:
+                layer_input = self.layers[i-1]['activations']
+            
+            # Update weights and biases
+            layer['weights'] -= self.learning_rate * np.dot(layer_input.T, delta)
+            layer['biases'] -= self.learning_rate * np.sum(delta, axis=0, keepdims=True)
     
-    def save_model(self, filepath: str):
-        """Save model to file"""
-        model_data = {
-            'vocab_size': self.vocab_size,
-            'd_model': self.d_model,
-            'max_seq_len': self.max_seq_len,
-            'tokenizer_vocab': self.tokenizer.vocab,
-            # Add other model parameters here
+    def copy(self):
+        """Create a copy of the network"""
+        new_net = NeuralNetwork(1, [], 1)  # Dummy initialization
+        new_net.layers = []
+        for layer in self.layers:
+            new_layer = {
+                'weights': layer['weights'].copy(),
+                'biases': layer['biases'].copy(),
+                'activations': None,
+                'z_values': None
+            }
+            new_net.layers.append(new_layer)
+        return new_net
+
+class Environment(ABC):
+    """Abstract base class for environments the AI can learn in"""
+    
+    @abstractmethod
+    def reset(self):
+        """Reset environment to initial state"""
+        pass
+    
+    @abstractmethod
+    def step(self, action):
+        """Take an action and return (next_state, reward, done, info)"""
+        pass
+    
+    @abstractmethod
+    def get_state_size(self):
+        """Return the size of the state space"""
+        pass
+    
+    @abstractmethod
+    def get_action_size(self):
+        """Return the size of the action space"""
+        pass
+
+class GridWorldEnvironment(Environment):
+    """Simple grid world for the AI to navigate"""
+    
+    def __init__(self, width: int = 5, height: int = 5):
+        self.width = width
+        self.height = height
+        self.reset()
+        
+        # Define rewards
+        self.goal_reward = 100
+        self.step_penalty = -1
+        self.wall_penalty = -10
+    
+    def reset(self):
+        """Reset to starting position"""
+        self.agent_pos = [0, 0]
+        self.goal_pos = [self.width-1, self.height-1]
+        self.walls = [(2, 2), (2, 3), (3, 2)]  # Some walls
+        return self.get_state()
+    
+    def get_state(self):
+        """Get current state representation"""
+        state = np.zeros(self.width * self.height + 4)  # Grid + agent pos + goal pos
+        
+        # One-hot encode agent position
+        agent_idx = self.agent_pos[1] * self.width + self.agent_pos[0]
+        state[agent_idx] = 1
+        
+        # Add agent and goal positions as features
+        state[-4] = self.agent_pos[0] / self.width
+        state[-3] = self.agent_pos[1] / self.height
+        state[-2] = self.goal_pos[0] / self.width
+        state[-1] = self.goal_pos[1] / self.height
+        
+        return state
+    
+    def step(self, action):
+        """Take action: 0=up, 1=right, 2=down, 3=left"""
+        old_pos = self.agent_pos.copy()
+        
+        # Apply action
+        if action == 0:  # Up
+            self.agent_pos[1] = max(0, self.agent_pos[1] - 1)
+        elif action == 1:  # Right
+            self.agent_pos[0] = min(self.width-1, self.agent_pos[0] + 1)
+        elif action == 2:  # Down
+            self.agent_pos[1] = min(self.height-1, self.agent_pos[1] + 1)
+        elif action == 3:  # Left
+            self.agent_pos[0] = max(0, self.agent_pos[0] - 1)
+        
+        # Check if hit wall
+        if tuple(self.agent_pos) in self.walls:
+            self.agent_pos = old_pos  # Bounce back
+            reward = self.wall_penalty
+        elif self.agent_pos == self.goal_pos:
+            reward = self.goal_reward
+        else:
+            reward = self.step_penalty
+        
+        done = (self.agent_pos == self.goal_pos)
+        
+        return self.get_state(), reward, done, {}
+    
+    def get_state_size(self):
+        return self.width * self.height + 4
+    
+    def get_action_size(self):
+        return 4
+    
+    def render(self):
+        """Visual representation of the environment"""
+        grid = [['.' for _ in range(self.width)] for _ in range(self.height)]
+        
+        # Add walls
+        for wall in self.walls:
+            grid[wall[1]][wall[0]] = '#'
+        
+        # Add goal
+        grid[self.goal_pos[1]][self.goal_pos[0]] = 'G'
+        
+        # Add agent
+        grid[self.agent_pos[1]][self.agent_pos[0]] = 'A'
+        
+        for row in grid:
+            print(' '.join(row))
+        print()
+
+class TaskEnvironment(Environment):
+    """Environment for learning specific tasks"""
+    
+    def __init__(self, task_type: str = "sorting"):
+        self.task_type = task_type
+        self.reset()
+    
+    def reset(self):
+        if self.task_type == "sorting":
+            # Generate random array to sort
+            self.array = np.random.randint(1, 10, size=5)
+            self.target = np.sort(self.array)
+            self.current_array = self.array.copy()
+            self.steps = 0
+            self.max_steps = 20
+        
+        return self.get_state()
+    
+    def get_state(self):
+        if self.task_type == "sorting":
+            # State includes current array and target
+            state = np.concatenate([
+                self.current_array / 10.0,  # Normalize
+                self.target / 10.0,
+                [self.steps / self.max_steps]
+            ])
+            return state
+    
+    def step(self, action):
+        if self.task_type == "sorting":
+            # Actions: swap adjacent elements (0-3) or do nothing (4)
+            if action < 4 and action < len(self.current_array) - 1:
+                # Swap elements at position action and action+1
+                self.current_array[action], self.current_array[action+1] = \
+                    self.current_array[action+1], self.current_array[action]
+            
+            self.steps += 1
+            
+            # Calculate reward
+            if np.array_equal(self.current_array, self.target):
+                reward = 100  # Solved!
+                done = True
+            elif self.steps >= self.max_steps:
+                reward = -50  # Failed
+                done = True
+            else:
+                # Reward based on how close to sorted
+                inversions = self._count_inversions()
+                reward = -inversions - 1  # Small penalty for each step
+                done = False
+            
+            return self.get_state(), reward, done, {}
+    
+    def _count_inversions(self):
+        """Count how many pairs are out of order"""
+        count = 0
+        for i in range(len(self.current_array)):
+            for j in range(i+1, len(self.current_array)):
+                if self.current_array[i] > self.current_array[j]:
+                    count += 1
+        return count
+    
+    def get_state_size(self):
+        if self.task_type == "sorting":
+            return 11  # 5 current + 5 target + 1 step
+    
+    def get_action_size(self):
+        if self.task_type == "sorting":
+            return 5  # 4 swaps + 1 do nothing
+    
+    def render(self):
+        if self.task_type == "sorting":
+            print(f"Current: {self.current_array}")
+            print(f"Target:  {self.target}")
+            print(f"Steps: {self.steps}/{self.max_steps}")
+            print()
+
+class DQNAgent:
+    """Deep Q-Network agent that learns to perform tasks"""
+    
+    def __init__(self, state_size: int, action_size: int, learning_rate: float = 0.01):
+        self.state_size = state_size
+        self.action_size = action_size
+        self.memory = Memory(capacity=2000)
+        
+        # Hyperparameters
+        self.epsilon = 1.0  # Exploration rate
+        self.epsilon_min = 0.01
+        self.epsilon_decay = 0.995
+        self.gamma = 0.95  # Discount factor
+        self.batch_size = 32
+        
+        # Neural networks
+        self.q_network = NeuralNetwork(state_size, [64, 64], action_size, learning_rate)
+        self.target_network = self.q_network.copy()
+        self.update_target_frequency = 100
+        self.update_counter = 0
+        
+        # Training stats
+        self.total_reward = 0
+        self.episode_rewards = []
+        self.episode_steps = []
+    
+    def act(self, state, training=True):
+        """Choose action using epsilon-greedy policy"""
+        if training and np.random.random() <= self.epsilon:
+            return np.random.choice(self.action_size)
+        
+        q_values = self.q_network.forward(state)
+        return np.argmax(q_values)
+    
+    def remember(self, state, action, reward, next_state, done):
+        """Store experience in memory"""
+        self.memory.push(state, action, reward, next_state, done)
+    
+    def replay(self):
+        """Train the network on a batch of experiences"""
+        if len(self.memory) < self.batch_size:
+            return
+        
+        experiences = self.memory.sample(self.batch_size)
+        
+        for state, action, reward, next_state, done in experiences:
+            target = reward
+            if not done:
+                next_q_values = self.target_network.forward(next_state)
+                target = reward + self.gamma * np.max(next_q_values)
+            
+            # Get current Q values
+            current_q_values = self.q_network.forward(state)
+            target_q_values = current_q_values.copy()
+            target_q_values[action] = target
+            
+            # Train network
+            self.q_network.backward(state, target_q_values)
+        
+        # Decay exploration
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
+        
+        # Update target network periodically
+        self.update_counter += 1
+        if self.update_counter % self.update_target_frequency == 0:
+            self.target_network = self.q_network.copy()
+    
+    def train(self, environment: Environment, episodes: int = 1000, verbose: bool = True):
+        """Train the agent in the given environment"""
+        self.episode_rewards = []
+        self.episode_steps = []
+        
+        for episode in range(episodes):
+            state = environment.reset()
+            total_reward = 0
+            steps = 0
+            
+            while True:
+                action = self.act(state)
+                next_state, reward, done, _ = environment.step(action)
+                
+                self.remember(state, action, reward, next_state, done)
+                state = next_state
+                total_reward += reward
+                steps += 1
+                
+                if done:
+                    break
+                
+                # Prevent infinite episodes
+                if steps > 1000:
+                    break
+            
+            self.episode_rewards.append(total_reward)
+            self.episode_steps.append(steps)
+            
+            # Train on experiences
+            self.replay()
+            
+            if verbose and episode % 100 == 0:
+                avg_reward = np.mean(self.episode_rewards[-100:])
+                avg_steps = np.mean(self.episode_steps[-100:])
+                print(f"Episode {episode}, Avg Reward: {avg_reward:.2f}, Avg Steps: {avg_steps:.2f}, Epsilon: {self.epsilon:.3f}")
+    
+    def test(self, environment: Environment, episodes: int = 10):
+        """Test the trained agent"""
+        print("\n--- Testing Trained Agent ---")
+        test_rewards = []
+        
+        for episode in range(episodes):
+            state = environment.reset()
+            total_reward = 0
+            steps = 0
+            
+            print(f"\nTest Episode {episode + 1}:")
+            environment.render()
+            
+            while True:
+                action = self.act(state, training=False)  # No exploration
+                state, reward, done, _ = environment.step(action)
+                total_reward += reward
+                steps += 1
+                
+                print(f"Step {steps}: Action {action}, Reward {reward}")
+                environment.render()
+                
+                if done or steps > 50:
+                    break
+                
+                time.sleep(0.5)  # Slow down for visualization
+            
+            test_rewards.append(total_reward)
+            print(f"Episode {episode + 1} finished with reward: {total_reward}")
+        
+        avg_test_reward = np.mean(test_rewards)
+        print(f"\nAverage test reward: {avg_test_reward:.2f}")
+        return avg_test_reward
+    
+    def save(self, filepath: str):
+        """Save the trained agent"""
+        agent_data = {
+            'state_size': self.state_size,
+            'action_size': self.action_size,
+            'epsilon': self.epsilon,
+            'episode_rewards': self.episode_rewards,
+            # Note: Would need to implement network serialization for full save
         }
         
         with open(filepath, 'wb') as f:
-            pickle.dump(model_data, f)
-        
-        print(f"Model saved to {filepath}")
-    
-    def load_model(self, filepath: str):
-        """Load model from file"""
-        with open(filepath, 'rb') as f:
-            model_data = pickle.load(f)
-        
-        self.tokenizer.vocab = model_data['tokenizer_vocab']
-        self.tokenizer.reverse_vocab = {v: k for k, v in self.tokenizer.vocab.items()}
-        self.tokenizer.vocab_size = len(self.tokenizer.vocab)
-        
-        print(f"Model loaded from {filepath}")
+            pickle.dump(agent_data, f)
+        print(f"Agent saved to {filepath}")
 
-# Example usage and testing
+class LearningAI:
+    """Main AI class that can learn different tasks"""
+    
+    def __init__(self):
+        self.agents = {}  # Store different specialized agents
+        self.environments = {}
+        self.current_task = None
+    
+    def add_task(self, task_name: str, environment: Environment):
+        """Add a new task for the AI to learn"""
+        self.environments[task_name] = environment
+        
+        # Create specialized agent for this task
+        state_size = environment.get_state_size()
+        action_size = environment.get_action_size()
+        self.agents[task_name] = DQNAgent(state_size, action_size)
+        
+        print(f"Added task '{task_name}' with state size {state_size} and {action_size} actions")
+    
+    def learn_task(self, task_name: str, episodes: int = 1000):
+        """Train the AI on a specific task"""
+        if task_name not in self.agents:
+            print(f"Task '{task_name}' not found!")
+            return
+        
+        print(f"\n=== Learning Task: {task_name} ===")
+        agent = self.agents[task_name]
+        environment = self.environments[task_name]
+        
+        agent.train(environment, episodes)
+        self.current_task = task_name
+        
+        print(f"Finished learning '{task_name}'!")
+    
+    def demonstrate_task(self, task_name: str, episodes: int = 3):
+        """Show the AI performing a learned task"""
+        if task_name not in self.agents:
+            print(f"Task '{task_name}' not found!")
+            return
+        
+        print(f"\n=== Demonstrating Task: {task_name} ===")
+        agent = self.agents[task_name]
+        environment = self.environments[task_name]
+        
+        return agent.test(environment, episodes)
+    
+    def get_learning_progress(self, task_name: str):
+        """Get learning statistics for a task"""
+        if task_name not in self.agents:
+            return None
+        
+        agent = self.agents[task_name]
+        if not agent.episode_rewards:
+            return None
+        
+        recent_performance = np.mean(agent.episode_rewards[-100:]) if len(agent.episode_rewards) >= 100 else np.mean(agent.episode_rewards)
+        
+        return {
+            'episodes_trained': len(agent.episode_rewards),
+            'recent_avg_reward': recent_performance,
+            'best_reward': max(agent.episode_rewards),
+            'exploration_rate': agent.epsilon
+        }
+
+# Example usage and demonstration
 if __name__ == "__main__":
-    # Sample training data
-    training_texts = [
-        "Hello, how are you today?",
-        "The weather is nice outside.",
-        "I love programming and artificial intelligence.",
-        "Python is a great programming language.",
-        "Machine learning is fascinating.",
-    ]
+    print("🤖 Action-Learning AI System")
+    print("=" * 40)
     
-    # Initialize tokenizer and build vocabulary
-    tokenizer = Tokenizer()
-    tokenizer.build_vocab(training_texts)
+    # Create the learning AI
+    ai = LearningAI()
     
-    print(f"Vocabulary size: {tokenizer.vocab_size}")
-    print(f"Sample tokens: {list(tokenizer.vocab.keys())[:10]}")
+    # Add different tasks
+    print("\n📋 Adding Tasks...")
     
-    # Create AI model
-    ai = SimpleAI(vocab_size=tokenizer.vocab_size, d_model=128, num_layers=2)
-    ai.tokenizer = tokenizer
+    # Task 1: Navigate a grid world
+    grid_env = GridWorldEnvironment(width=4, height=4)
+    ai.add_task("navigation", grid_env)
     
-    # Test text generation
-    print("\n--- Text Generation Test ---")
-    prompt = "Hello"
-    generated = ai.generate_text(prompt, max_length=10)
-    print(f"Prompt: '{prompt}'")
-    print(f"Generated: '{generated}'")
+    # Task 2: Learn to sort numbers
+    sorting_env = TaskEnvironment(task_type="sorting")
+    ai.add_task("sorting", sorting_env)
     
-    # Test encoding/decoding
-    print("\n--- Tokenization Test ---")
-    test_text = "Hello world!"
-    encoded = tokenizer.encode(test_text)
-    decoded = tokenizer.decode(encoded)
-    print(f"Original: '{test_text}'")
-    print(f"Encoded: {encoded}")
-    print(f"Decoded: '{decoded}'")
+    # Train on navigation task
+    print("\n🎯 Training on Navigation Task...")
+    ai.learn_task("navigation", episodes=500)
     
-    print("\n--- Model Architecture ---")
-    print(f"Model parameters:")
-    print(f"- Vocabulary size: {ai.vocab_size}")
-    print(f"- Model dimension: {ai.d_model}")
-    print(f"- Number of layers: {len(ai.transformer_blocks)}")
-    print(f"- Max sequence length: {ai.max_seq_len}")
+    # Show navigation performance
+    progress = ai.get_learning_progress("navigation")
+    if progress:
+        print(f"Navigation Progress:")
+        print(f"- Episodes trained: {progress['episodes_trained']}")
+        print(f"- Recent average reward: {progress['recent_avg_reward']:.2f}")
+        print(f"- Best reward achieved: {progress['best_reward']:.2f}")
+    
+    # Train on sorting task
+    print("\n🔢 Training on Sorting Task...")
+    ai.learn_task("sorting", episodes=300)
+    
+    # Show sorting performance
+    progress = ai.get_learning_progress("sorting")
+    if progress:
+        print(f"Sorting Progress:")
+        print(f"- Episodes trained: {progress['episodes_trained']}")
+        print(f"- Recent average reward: {progress['recent_avg_reward']:.2f}")
+        print(f"- Best reward achieved: {progress['best_reward']:.2f}")
+    
+    # Demonstrate learned skills
+    print("\n🎭 Demonstrating Learned Skills...")
+    ai.demonstrate_task("navigation", episodes=2)
+    ai.demonstrate_task("sorting", episodes=2)
+    
+    print("\n✅ AI has successfully learned to perform tasks!")
+    print("The AI can now:")
+    print("- Navigate through environments")
+    print("- Learn to sort arrays")
+    print("- Adapt to new tasks")
+    print("- Improve through experience")

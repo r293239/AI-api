@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Learning System - Interactive Demo</title>
+    <title>AI Learning System - Live Demo</title>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
     <style>
         * {
             margin: 0;
@@ -84,6 +85,33 @@
             animation: fadeInUp 1s ease-out 0.2s both;
         }
 
+        .status-indicator {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            font-weight: bold;
+            margin-bottom: 2rem;
+            animation: fadeInUp 1s ease-out 0.3s both;
+        }
+
+        .status-loading {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+            border: 2px solid #ffc107;
+        }
+
+        .status-ready {
+            background: rgba(40, 167, 69, 0.2);
+            color: #28a745;
+            border: 2px solid #28a745;
+        }
+
+        .status-error {
+            background: rgba(220, 53, 69, 0.2);
+            color: #dc3545;
+            border: 2px solid #dc3545;
+        }
+
         .cta-button {
             display: inline-block;
             background: linear-gradient(45deg, #ff6b6b, #ee5a24);
@@ -100,9 +128,14 @@
             border: none;
         }
 
-        .cta-button:hover {
+        .cta-button:hover:not(:disabled) {
             transform: translateY(-3px);
             box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+        }
+
+        .cta-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
         .demo-section {
@@ -131,7 +164,7 @@
             padding: 2rem;
             border-radius: 15px;
             font-family: 'Courier New', monospace;
-            height: 500px;
+            height: 600px;
             overflow-y: auto;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
         }
@@ -237,22 +270,6 @@
             margin-bottom: 1rem;
         }
 
-        .code-section {
-            background: #f8f9fa;
-            padding: 4rem 0;
-        }
-
-        .code-block {
-            background: #2d3748;
-            color: #e2e8f0;
-            padding: 2rem;
-            border-radius: 10px;
-            font-family: 'Courier New', monospace;
-            overflow-x: auto;
-            line-height: 1.5;
-            margin-top: 2rem;
-        }
-
         .visualization {
             background: white;
             border: 2px solid #e2e8f0;
@@ -261,38 +278,32 @@
             margin-top: 1rem;
         }
 
-        .grid-cell {
-            width: 40px;
-            height: 40px;
-            border: 1px solid #ccc;
+        .grid-display {
             display: inline-block;
-            text-align: center;
-            line-height: 40px;
+            border: 2px solid #333;
+            padding: 5px;
+            background: #f9f9f9;
+        }
+
+        .grid-row {
+            display: flex;
+        }
+
+        .grid-cell {
+            width: 35px;
+            height: 35px;
+            border: 1px solid #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-weight: bold;
+            font-size: 14px;
         }
 
-        .agent { background: #4ade80; }
-        .goal { background: #f59e0b; }
-        .wall { background: #6b7280; }
+        .agent { background: #4ade80; color: white; }
+        .goal { background: #f59e0b; color: white; }
+        .wall { background: #6b7280; color: white; }
         .empty { background: #f9fafb; }
-
-        footer {
-            background: #2d3748;
-            color: white;
-            text-align: center;
-            padding: 2rem 0;
-        }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
 
         .loading {
             display: inline-block;
@@ -309,6 +320,38 @@
             100% { transform: rotate(360deg); }
         }
 
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .metrics {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        footer {
+            background: #2d3748;
+            color: white;
+            text-align: center;
+            padding: 2rem 0;
+        }
+
         @media (max-width: 768px) {
             .hero h1 { font-size: 2.5rem; }
             .demo-container { grid-template-columns: 1fr; }
@@ -322,9 +365,9 @@
             <div class="header-content">
                 <div class="logo">🤖 AI Learning System</div>
                 <nav class="nav-links">
-                    <a href="#demo">Try Demo</a>
+                    <a href="#demo">Live Demo</a>
                     <a href="#features">Features</a>
-                    <a href="#code">View Code</a>
+                    <a href="#code">Source Code</a>
                 </nav>
             </div>
         </div>
@@ -333,17 +376,20 @@
     <section class="hero">
         <div class="container">
             <h1>Action-Learning AI System</h1>
-            <p>Experience reinforcement learning in action!</p>
-            <button class="cta-button" onclick="scrollToDemo()">Try Interactive Demo</button>
+            <p>Real reinforcement learning running in your browser with Python + WebAssembly</p>
+            <div class="status-indicator" id="python-status">
+                <span class="loading"></span> Loading Python Environment...
+            </div>
+            <button class="cta-button" id="scroll-demo" onclick="scrollToDemo()" disabled>Try Live Demo</button>
         </div>
     </section>
 
     <section class="demo-section" id="demo">
         <div class="container">
-            <h2 style="text-align: center; margin-bottom: 3rem; font-size: 2.5rem;">Interactive AI Demo</h2>
+            <h2 style="text-align: center; margin-bottom: 3rem; font-size: 2.5rem;">Live AI Demo</h2>
             <div class="demo-container">
                 <div class="demo-controls">
-                    <h3 style="margin-bottom: 2rem;">AI Training Controls</h3>
+                    <h3 style="margin-bottom: 2rem;">Real AI Training Controls</h3>
                     
                     <div class="form-group">
                         <label for="task-type">Select Task Type</label>
@@ -353,7 +399,7 @@
                         </select>
                     </div>
 
-                    <div class="form-group" id="nav-config" style="display: block;">
+                    <div class="form-group" id="nav-config">
                         <label for="grid-size">Grid Size</label>
                         <select id="grid-size">
                             <option value="4">4x4 Grid</option>
@@ -371,17 +417,21 @@
                         </select>
                     </div>
 
-                    <button class="demo-button" id="start-training" onclick="startTraining()">
-                        🚀 Start Training AI
+                    <button class="demo-button" id="start-training" onclick="startTraining()" disabled>
+                        🚀 Start Real AI Training
                     </button>
 
                     <div class="progress-bar" style="display: none;" id="progress-container">
                         <div class="progress-fill" id="progress-fill"></div>
                     </div>
-                    <div id="progress-text" style="text-align: center; margin-bottom: 1rem;"></div>
+                    <div id="progress-text" style="text-align: center; margin-bottom: 1rem; font-weight: bold;"></div>
 
                     <button class="demo-button" id="test-ai" onclick="testAI()" disabled>
                         🎯 Test Trained AI
+                    </button>
+
+                    <button class="demo-button" id="show-progress" onclick="showProgress()" disabled>
+                        📊 Show Learning Progress
                     </button>
 
                     <button class="demo-button" onclick="resetDemo()">
@@ -391,20 +441,14 @@
                     <div class="visualization" id="visualization" style="display: none;">
                         <h4>Environment Visualization</h4>
                         <div id="grid-display"></div>
-                        <div id="stats" style="margin-top: 1rem; font-size: 0.9rem;"></div>
+                        <div class="metrics" id="metrics"></div>
                     </div>
                 </div>
 
                 <div class="demo-output" id="output">
-                    <div style="color: #4ade80; font-weight: bold;">🤖 AI Learning System Console</div>
-                    <div style="color: #94a3b8; margin-bottom: 1rem;">Ready to demonstrate reinforcement learning...</div>
-                    <div>Select a task type and click "Start Training AI" to begin!</div>
-                    <br>
-                    <div style="color: #fbbf24;">Features:</div>
-                    <div>• Deep Q-Network (DQN) with experience replay</div>
-                    <div>• Multiple environment support</div>
-                    <div>• Real-time training visualization</div>
-                    <div>• No server required - runs entirely in browser</div>
+                    <div style="color: #4ade80; font-weight: bold;">🤖 Real AI Learning System Console</div>
+                    <div style="color: #94a3b8; margin-bottom: 1rem;">Powered by your Python code + Pyodide WebAssembly</div>
+                    <div id="init-status">Initializing Python environment...</div>
                 </div>
             </div>
         </div>
@@ -412,383 +456,54 @@
 
     <section class="features" id="features">
         <div class="container">
-            <h2>System Capabilities</h2>
+            <h2>Real System Capabilities</h2>
             <div class="feature-grid">
                 <div class="feature-card">
-                    <h3>🎯 Multi-Task Learning</h3>
-                    <p>Train AI agents on navigation, sorting, and custom tasks. Each agent learns optimal strategies through trial and error.</p>
+                    <h3>🐍 Real Python Code</h3>
+                    <p>Your actual AI learning system running in the browser via WebAssembly. No simulation - this is the real deal!</p>
                 </div>
                 <div class="feature-card">
                     <h3>🧠 Deep Q-Networks</h3>
-                    <p>Advanced neural network with experience replay, target networks, and epsilon-greedy exploration for stable learning.</p>
+                    <p>Genuine neural network training with experience replay, target networks, and epsilon-greedy exploration.</p>
                 </div>
                 <div class="feature-card">
-                    <h3>🌍 Custom Environments</h3>
-                    <p>Grid worlds, algorithmic challenges, and extensible environment framework for creating new learning scenarios.</p>
+                    <h3>🌍 Live Environments</h3>
+                    <p>Real grid worlds and task environments with actual state spaces, actions, and reward functions.</p>
                 </div>
                 <div class="feature-card">
-                    <h3>📊 Real-time Visualization</h3>
-                    <p>Watch your AI learn in real-time with live performance metrics, environment visualization, and training progress.</p>
+                    <h3>📊 True Learning</h3>
+                    <p>Watch real neural network weights update as the AI genuinely learns through reinforcement learning.</p>
                 </div>
-            </div>
-        </div>
-    </section>
-
-    <section class="code-section" id="code">
-        <div class="container">
-            <h2 style="text-align: center; margin-bottom: 2rem;">Complete Source Code</h2>
-            <p style="text-align: center; margin-bottom: 2rem; font-size: 1.1rem;">
-                This demo runs your exact Python code! Here's how to use it in your own projects:
-            </p>
-            
-            <div class="code-block">
-<span style="color: #fd79a8;"># Quick Start Example</span>
-<span style="color: #ff7979;">from</span> ai_learning_system <span style="color: #ff7979;">import</span> LearningAI, GridWorldEnvironment
-
-<span style="color: #fd79a8;"># Create the learning AI</span>
-ai = LearningAI()
-
-<span style="color: #fd79a8;"># Add a navigation task</span>
-grid_env = GridWorldEnvironment(width=<span style="color: #74b9ff;">5</span>, height=<span style="color: #74b9ff;">5</span>)
-ai.add_task(<span style="color: #00b894;">"navigation"</span>, grid_env)
-
-<span style="color: #fd79a8;"># Train the AI</span>
-ai.learn_task(<span style="color: #00b894;">"navigation"</span>, episodes=<span style="color: #74b9ff;">500</span>)
-
-<span style="color: #fd79a8;"># Test the trained AI</span>
-ai.demonstrate_task(<span style="color: #00b894;">"navigation"</span>, episodes=<span style="color: #74b9ff;">3</span>)
-
-<span style="color: #fd79a8;"># Get learning progress</span>
-progress = ai.get_learning_progress(<span style="color: #00b894;">"navigation"</span>)
-<span style="color: #a29bfe;">print</span>(<span style="color: #a29bfe;">f</span><span style="color: #00b894;">"Best reward: {progress['best_reward']}"</span>)
-            </div>
-
-            <div style="text-align: center; margin-top: 2rem;">
-                <button class="cta-button" onclick="downloadCode()">📥 Download Complete Code</button>
             </div>
         </div>
     </section>
 
     <footer>
         <div class="container">
-            <p>&copy; 2025 AI Learning System. Built with pure JavaScript - no backend required!</p>
-            <p>Experience the power of reinforcement learning directly in your browser.</p>
+            <p>&copy; 2025 AI Learning System. Real Python reinforcement learning in your browser!</p>
+            <p>Powered by Pyodide WebAssembly - no backend servers required.</p>
         </div>
     </footer>
 
     <script>
-        // Simulated AI Learning System (JavaScript implementation)
-        class AILearningSystem {
-            constructor() {
-                this.currentTask = null;
-                this.agent = null;
-                this.environment = null;
-                this.isTraining = false;
-                this.trainingProgress = 0;
-                this.trainingData = [];
-            }
+        let pyodide;
+        let aiSystem;
+        let currentTrainingTask = null;
+        let isTraining = false;
 
-            createTask(taskType, config) {
-                this.currentTask = taskType;
+        // Initialize Pyodide and load the AI system
+        async function initializePyodide() {
+            try {
+                updateStatus('Loading Python runtime...', 'loading');
+                pyodide = await loadPyodide();
                 
-                if (taskType === 'navigation') {
-                    this.environment = new GridEnvironment(config.size);
-                    this.agent = new DQNAgent(this.environment.getStateSize(), 4); // 4 actions
-                } else if (taskType === 'sorting') {
-                    this.environment = new SortingEnvironment();
-                    this.agent = new DQNAgent(this.environment.getStateSize(), 5); // 5 actions
-                }
+                updateStatus('Installing NumPy...', 'loading');
+                await pyodide.loadPackage("numpy");
                 
-                this.log(`🎯 Created ${taskType} task`);
-                this.updateVisualization();
-            }
-
-            async train(episodes) {
-                if (!this.agent || !this.environment) {
-                    this.log('❌ No task created yet!');
-                    return;
-                }
-
-                this.isTraining = true;
-                this.log(`🚀 Starting training for ${episodes} episodes...`);
+                updateStatus('Loading AI Learning System...', 'loading');
                 
-                const progressContainer = document.getElementById('progress-container');
-                const progressFill = document.getElementById('progress-fill');
-                const progressText = document.getElementById('progress-text');
-                
-                progressContainer.style.display = 'block';
-                
-                for (let episode = 0; episode < episodes; episode++) {
-                    // Simulate training episode
-                    const reward = await this.simulateEpisode();
-                    this.trainingData.push(reward);
-                    
-                    this.trainingProgress = ((episode + 1) / episodes) * 100;
-                    progressFill.style.width = `${this.trainingProgress}%`;
-                    progressText.textContent = `Episode ${episode + 1}/${episodes} - Recent Reward: ${reward.toFixed(2)}`;
-                    
-                    if (episode % 50 === 0) {
-                        const avgReward = this.trainingData.slice(-50).reduce((a, b) => a + b, 0) / 50;
-                        this.log(`📊 Episode ${episode}: Average reward = ${avgReward.toFixed(2)}`);
-                    }
-                    
-                    // Small delay to show progress
-                    await new Promise(resolve => setTimeout(resolve, 10));
-                }
-                
-                this.isTraining = false;
-                const finalAvg = this.trainingData.slice(-100).reduce((a, b) => a + b, 0) / 100;
-                this.log(`✅ Training complete! Final average reward: ${finalAvg.toFixed(2)}`);
-                
-                document.getElementById('test-ai').disabled = false;
-            }
-
-            async simulateEpisode() {
-                // Simulate a training episode with improving performance
-                const episodeNum = this.trainingData.length;
-                const learningCurve = Math.min(episodeNum / 200, 1); // Improve over 200 episodes
-                
-                if (this.currentTask === 'navigation') {
-                    // Navigation task: reward improves from -50 to +90
-                    const baseReward = -50 + (140 * learningCurve);
-                    const noise = (Math.random() - 0.5) * 20;
-                    return Math.max(-100, Math.min(100, baseReward + noise));
-                } else if (this.currentTask === 'sorting') {
-                    // Sorting task: reward improves from -30 to +80
-                    const baseReward = -30 + (110 * learningCurve);
-                    const noise = (Math.random() - 0.5) * 15;
-                    return Math.max(-50, Math.min(100, baseReward + noise));
-                }
-                
-                return 0;
-            }
-
-            async testAI() {
-                if (!this.agent || this.trainingData.length === 0) {
-                    this.log('❌ AI not trained yet!');
-                    return;
-                }
-
-                this.log('🎯 Testing trained AI...');
-                
-                for (let test = 1; test <= 3; test++) {
-                    this.log(`\n--- Test Episode ${test} ---`);
-                    
-                    if (this.currentTask === 'navigation') {
-                        await this.testNavigation();
-                    } else if (this.currentTask === 'sorting') {
-                        await this.testSorting();
-                    }
-                    
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-                
-                const avgPerformance = this.trainingData.slice(-50).reduce((a, b) => a + b, 0) / 50;
-                this.log(`\n✅ Testing complete! Average performance: ${avgPerformance.toFixed(2)}`);
-            }
-
-            async testNavigation() {
-                this.log('🤖 Agent starting at position (0,0)');
-                this.environment.reset();
-                this.updateVisualization();
-                
-                const steps = ['Right', 'Down', 'Right', 'Down', 'Right'];
-                
-                for (let i = 0; i < steps.length; i++) {
-                    await new Promise(resolve => setTimeout(resolve, 800));
-                    this.log(`Step ${i + 1}: Moving ${steps[i]}`);
-                    this.environment.step(i % 4);
-                    this.updateVisualization();
-                }
-                
-                this.log('🎯 Reached goal! Reward: +90');
-            }
-
-            async testSorting() {
-                const array = [5, 2, 8, 1, 9];
-                this.log(`🔢 Initial array: [${array.join(', ')}]`);
-                
-                const sortingSteps = [
-                    { action: 'Swap positions 1-2', array: [2, 5, 8, 1, 9] },
-                    { action: 'Swap positions 3-4', array: [2, 5, 1, 8, 9] },
-                    { action: 'Swap positions 2-3', array: [2, 1, 5, 8, 9] },
-                    { action: 'Swap positions 1-2', array: [1, 2, 5, 8, 9] }
-                ];
-                
-                for (let step of sortingSteps) {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    this.log(`🔄 ${step.action}: [${step.array.join(', ')}]`);
-                }
-                
-                this.log('✅ Array sorted! Reward: +85');
-            }
-
-            updateVisualization() {
-                if (!this.environment) return;
-                
-                const viz = document.getElementById('visualization');
-                const gridDisplay = document.getElementById('grid-display');
-                const stats = document.getElementById('stats');
-                
-                if (this.currentTask === 'navigation') {
-                    viz.style.display = 'block';
-                    gridDisplay.innerHTML = this.environment.render();
-                    stats.innerHTML = `Agent Position: (${this.environment.agentPos[0]}, ${this.environment.agentPos[1]})<br>
-                                      Goal Position: (${this.environment.goalPos[0]}, ${this.environment.goalPos[1]})`;
-                } else {
-                    viz.style.display = 'none';
-                }
-            }
-
-            log(message) {
-                const output = document.getElementById('output');
-                const timestamp = new Date().toLocaleTimeString();
-                output.innerHTML += `<div style="color: #94a3b8;">[${timestamp}]</div> ${message}<br>`;
-                output.scrollTop = output.scrollHeight;
-            }
-
-            reset() {
-                this.currentTask = null;
-                this.agent = null;
-                this.environment = null;
-                this.isTraining = false;
-                this.trainingProgress = 0;
-                this.trainingData = [];
-                
-                document.getElementById('output').innerHTML = `
-                    <div style="color: #4ade80; font-weight: bold;">🤖 AI Learning System Console</div>
-                    <div style="color: #94a3b8; margin-bottom: 1rem;">System reset - ready for new task...</div>
-                `;
-                
-                document.getElementById('progress-container').style.display = 'none';
-                document.getElementById('test-ai').disabled = true;
-                document.getElementById('visualization').style.display = 'none';
-            }
-        }
-
-        // Simplified environment classes
-        class GridEnvironment {
-            constructor(size) {
-                this.size = size;
-                this.reset();
-            }
-
-            reset() {
-                this.agentPos = [0, 0];
-                this.goalPos = [this.size - 1, this.size - 1];
-                this.walls = this.generateWalls();
-            }
-
-            generateWalls() {
-                const walls = [];
-                const numWalls = Math.floor(this.size * this.size * 0.2);
-                for (let i = 0; i < numWalls; i++) {
-                    const x = Math.floor(Math.random() * this.size);
-                    const y = Math.floor(Math.random() * this.size);
-                    if ((x !== 0 || y !== 0) && (x !== this.goalPos[0] || y !== this.goalPos[1])) {
-                        walls.push([x, y]);
-                    }
-                }
-                return walls;
-            }
-
-            step(action) {
-                const moves = [[0, -1], [1, 0], [0, 1], [-1, 0]]; // up, right, down, left
-                const [dx, dy] = moves[action % 4];
-                
-                const newX = Math.max(0, Math.min(this.size - 1, this.agentPos[0] + dx));
-                const newY = Math.max(0, Math.min(this.size - 1, this.agentPos[1] + dy));
-                
-                this.agentPos = [newX, newY];
-            }
-
-            render() {
-                let html = '';
-                for (let y = 0; y < this.size; y++) {
-                    for (let x = 0; x < this.size; x++) {
-                        let cellClass = 'empty';
-                        let content = '';
-                        
-                        if (x === this.agentPos[0] && y === this.agentPos[1]) {
-                            cellClass = 'agent';
-                            content = 'A';
-                        } else if (x === this.goalPos[0] && y === this.goalPos[1]) {
-                            cellClass = 'goal';
-                            content = 'G';
-                        } else if (this.walls.some(([wx, wy]) => wx === x && wy === y)) {
-                            cellClass = 'wall';
-                            content = '#';
-                        }
-                        
-                        html += `<div class="grid-cell ${cellClass}">${content}</div>`;
-                    }
-                    html += '<br>';
-                }
-                return html;
-            }
-
-            getStateSize() { return this.size * this.size + 4; }
-        }
-
-        class SortingEnvironment {
-            getStateSize() { return 11; }
-        }
-
-        class DQNAgent {
-            constructor(stateSize, actionSize) {
-                this.stateSize = stateSize;
-                this.actionSize = actionSize;
-            }
-        }
-
-        // Global AI instance
-        const aiSystem = new AILearningSystem();
-
-        // UI Functions
-        function scrollToDemo() {
-            document.getElementById('demo').scrollIntoView({ behavior: 'smooth' });
-        }
-
-        async function startTraining() {
-            if (aiSystem.isTraining) return;
-            
-            const taskType = document.getElementById('task-type').value;
-            const episodes = parseInt(document.getElementById('episodes').value);
-            const gridSize = parseInt(document.getElementById('grid-size').value);
-            
-            const startBtn = document.getElementById('start-training');
-            startBtn.disabled = true;
-            startBtn.innerHTML = '<span class="loading"></span> Training...';
-            
-            aiSystem.createTask(taskType, { size: gridSize });
-            await aiSystem.train(episodes);
-            
-            startBtn.disabled = false;
-            startBtn.innerHTML = '🚀 Start Training AI';
-        }
-
-        async function testAI() {
-            const testBtn = document.getElementById('test-ai');
-            testBtn.disabled = true;
-            testBtn.innerHTML = '<span class="loading"></span> Testing...';
-            
-            await aiSystem.testAI();
-            
-            testBtn.disabled = false;
-            testBtn.innerHTML = '🎯 Test Trained AI';
-        }
-
-        function resetDemo() {
-            aiSystem.reset();
-            document.getElementById('start-training').disabled = false;
-            document.getElementById('start-training').innerHTML = '🚀 Start Training AI';
-        }
-
-        function downloadCode() {
-            // Create downloadable file with the complete Python code
-            const pythonCode = `# AI Learning System - Complete Source Code
-# Deep Q-Network Reinforcement Learning Implementation
-
+                // Load your complete AI learning system code
+                pyodide.runPython(`
 import numpy as np
 import json
 import pickle
@@ -822,39 +537,895 @@ class Memory:
     def __len__(self):
         return len(self.memory)
 
-# ... [Include your complete code from paste.txt here] ...
-
-if __name__ == "__main__":
-    print("🤖 Action-Learning AI System")
-    print("=" * 40)
+class NeuralNetwork:
+    """Simple neural network for function approximation"""
     
-    # Create the learning AI
-    ai = LearningAI()
+    def __init__(self, input_size: int, hidden_sizes: List[int], output_size: int, learning_rate: float = 0.01):
+        self.learning_rate = learning_rate
+        self.layers = []
+        
+        # Build network architecture
+        sizes = [input_size] + hidden_sizes + [output_size]
+        for i in range(len(sizes) - 1):
+            layer = {
+                'weights': np.random.randn(sizes[i], sizes[i+1]) * 0.1,
+                'biases': np.zeros((1, sizes[i+1])),
+                'activations': None,
+                'z_values': None
+            }
+            self.layers.append(layer)
     
-    # Add different tasks
-    print("\\n📋 Adding Tasks...")
+    def relu(self, x):
+        return np.maximum(0, x)
     
-    # Task 1: Navigate a grid world
-    grid_env = GridWorldEnvironment(width=4, height=4)
-    ai.add_task("navigation", grid_env)
+    def relu_derivative(self, x):
+        return (x > 0).astype(float)
     
-    # Task 2: Learn to sort numbers
-    sorting_env = TaskEnvironment(task_type="sorting")
-    ai.add_task("sorting", sorting_env)
-    
-    # Train and demonstrate
-    ai.learn_task("navigation", episodes=500)
-    ai.demonstrate_task("navigation", episodes=2)
-`;
-
-            const link = document.createElement('a');
-            link.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(pythonCode);
-            link.download = 'ai_learning_system.py';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+    def forward(self, x):
+        """Forward pass through network"""
+        activation = x.reshape(1, -1) if x.ndim == 1 else x
+        
+        for i, layer in enumerate(self.layers):
+            z = np.dot(activation, layer['weights']) + layer['biases']
+            layer['z_values'] = z
             
-            aiSystem.log('📥 Downloaded complete Python source code!');
+            if i < len(self.layers) - 1:  # Hidden layers use ReLU
+                activation = self.relu(z)
+            else:  # Output layer (linear)
+                activation = z
+                
+            layer['activations'] = activation
+        
+        return activation.flatten() if activation.shape[0] == 1 else activation
+    
+    def backward(self, x, target):
+        """Backpropagation to update weights"""
+        # Forward pass first
+        output = self.forward(x)
+        
+        # Calculate loss gradient (MSE)
+        output_error = output.reshape(1, -1) - target.reshape(1, -1)
+        
+        # Backward pass
+        for i in reversed(range(len(self.layers))):
+            layer = self.layers[i]
+            
+            if i == len(self.layers) - 1:  # Output layer
+                delta = output_error
+            else:  # Hidden layers
+                delta = np.dot(delta, self.layers[i+1]['weights'].T) * self.relu_derivative(layer['z_values'])
+            
+            # Get input to this layer
+            if i == 0:
+                layer_input = x.reshape(1, -1)
+            else:
+                layer_input = self.layers[i-1]['activations']
+            
+            # Update weights and biases
+            layer['weights'] -= self.learning_rate * np.dot(layer_input.T, delta)
+            layer['biases'] -= self.learning_rate * np.sum(delta, axis=0, keepdims=True)
+    
+    def copy(self):
+        """Create a copy of the network"""
+        new_net = NeuralNetwork(1, [], 1)  # Dummy initialization
+        new_net.layers = []
+        for layer in self.layers:
+            new_layer = {
+                'weights': layer['weights'].copy(),
+                'biases': layer['biases'].copy(),
+                'activations': None,
+                'z_values': None
+            }
+            new_net.layers.append(new_layer)
+        return new_net
+
+class Environment(ABC):
+    """Abstract base class for environments the AI can learn in"""
+    
+    @abstractmethod
+    def reset(self):
+        """Reset environment to initial state"""
+        pass
+    
+    @abstractmethod
+    def step(self, action):
+        """Take an action and return (next_state, reward, done, info)"""
+        pass
+    
+    @abstractmethod
+    def get_state_size(self):
+        """Return the size of the state space"""
+        pass
+    
+    @abstractmethod
+    def get_action_size(self):
+        """Return the size of the action space"""
+        pass
+
+class GridWorldEnvironment(Environment):
+    """Simple grid world for the AI to navigate"""
+    
+    def __init__(self, width: int = 5, height: int = 5):
+        self.width = width
+        self.height = height
+        self.reset()
+        
+        # Define rewards
+        self.goal_reward = 100
+        self.step_penalty = -1
+        self.wall_penalty = -10
+    
+    def reset(self):
+        """Reset to starting position"""
+        self.agent_pos = [0, 0]
+        self.goal_pos = [self.width-1, self.height-1]
+        self.walls = [(2, 2), (2, 3), (3, 2)] if self.width >= 4 else []  # Some walls
+        return self.get_state()
+    
+    def get_state(self):
+        """Get current state representation"""
+        state = np.zeros(self.width * self.height + 4)  # Grid + agent pos + goal pos
+        
+        # One-hot encode agent position
+        agent_idx = self.agent_pos[1] * self.width + self.agent_pos[0]
+        state[agent_idx] = 1
+        
+        # Add agent and goal positions as features
+        state[-4] = self.agent_pos[0] / self.width
+        state[-3] = self.agent_pos[1] / self.height
+        state[-2] = self.goal_pos[0] / self.width
+        state[-1] = self.goal_pos[1] / self.height
+        
+        return state
+    
+    def step(self, action):
+        """Take action: 0=up, 1=right, 2=down, 3=left"""
+        old_pos = self.agent_pos.copy()
+        
+        # Apply action
+        if action == 0:  # Up
+            self.agent_pos[1] = max(0, self.agent_pos[1] - 1)
+        elif action == 1:  # Right
+            self.agent_pos[0] = min(self.width-1, self.agent_pos[0] + 1)
+        elif action == 2:  # Down
+            self.agent_pos[1] = min(self.height-1, self.agent_pos[1] + 1)
+        elif action == 3:  # Left
+            self.agent_pos[0] = max(0, self.agent_pos[0] - 1)
+        
+        # Check if hit wall
+        if tuple(self.agent_pos) in self.walls:
+            self.agent_pos = old_pos  # Bounce back
+            reward = self.wall_penalty
+        elif self.agent_pos == self.goal_pos:
+            reward = self.goal_reward
+        else:
+            reward = self.step_penalty
+        
+        done = (self.agent_pos == self.goal_pos)
+        
+        return self.get_state(), reward, done, {}
+    
+    def get_state_size(self):
+        return self.width * self.height + 4
+    
+    def get_action_size(self):
+        return 4
+    
+    def render(self):
+        """Visual representation of the environment"""
+        grid = [['.' for _ in range(self.width)] for _ in range(self.height)]
+        
+        # Add walls
+        for wall in self.walls:
+            if 0 <= wall[0] < self.width and 0 <= wall[1] < self.height:
+                grid[wall[1]][wall[0]] = '#'
+        
+        # Add goal
+        grid[self.goal_pos[1]][self.goal_pos[0]] = 'G'
+        
+        # Add agent
+        grid[self.agent_pos[1]][self.agent_pos[0]] = 'A'
+        
+        return grid
+
+class TaskEnvironment(Environment):
+    """Environment for learning specific tasks"""
+    
+    def __init__(self, task_type: str = "sorting"):
+        self.task_type = task_type
+        self.reset()
+    
+    def reset(self):
+        if self.task_type == "sorting":
+            # Generate random array to sort
+            self.array = np.random.randint(1, 10, size=5)
+            self.target = np.sort(self.array)
+            self.current_array = self.array.copy()
+            self.steps = 0
+            self.max_steps = 20
+        
+        return self.get_state()
+    
+    def get_state(self):
+        if self.task_type == "sorting":
+            # State includes current array and target
+            state = np.concatenate([
+                self.current_array / 10.0,  # Normalize
+                self.target / 10.0,
+                [self.steps / self.max_steps]
+            ])
+            return state
+    
+    def step(self, action):
+        if self.task_type == "sorting":
+            # Actions: swap adjacent elements (0-3) or do nothing (4)
+            if action < 4 and action < len(self.current_array) - 1:
+                # Swap elements at position action and action+1
+                self.current_array[action], self.current_array[action+1] = \
+                    self.current_array[action+1], self.current_array[action]
+            
+            self.steps += 1
+            
+            # Calculate reward
+            if np.array_equal(self.current_array, self.target):
+                reward = 100  # Solved!
+                done = True
+            elif self.steps >= self.max_steps:
+                reward = -50  # Failed
+                done = True
+            else:
+                # Reward based on how close to sorted
+                inversions = self._count_inversions()
+                reward = -inversions - 1  # Small penalty for each step
+                done = False
+            
+            return self.get_state(), reward, done, {}
+    
+    def _count_inversions(self):
+        """Count how many pairs are out of order"""
+        count = 0
+        for i in range(len(self.current_array)):
+            for j in range(i+1, len(self.current_array)):
+                if self.current_array[i] > self.current_array[j]:
+                    count += 1
+        return count
+    
+    def get_state_size(self):
+        if self.task_type == "sorting":
+            return 11  # 5 current + 5 target + 1 step
+    
+    def get_action_size(self):
+        if self.task_type == "sorting":
+            return 5  # 4 swaps + 1 do nothing
+
+class DQNAgent:
+    """Deep Q-Network agent that learns to perform tasks"""
+    
+    def __init__(self, state_size: int, action_size: int, learning_rate: float = 0.01):
+        self.state_size = state_size
+        self.action_size = action_size
+        self.memory = Memory(capacity=2000)
+        
+        # Hyperparameters
+        self.epsilon = 1.0  # Exploration rate
+        self.epsilon_min = 0.01
+        self.epsilon_decay = 0.995
+        self.gamma = 0.95  # Discount factor
+        self.batch_size = 32
+        
+        # Neural networks
+        self.q_network = NeuralNetwork(state_size, [64, 64], action_size, learning_rate)
+        self.target_network = self.q_network.copy()
+        self.update_target_frequency = 100
+        self.update_counter = 0
+        
+        # Training stats
+        self.total_reward = 0
+        self.episode_rewards = []
+        self.episode_steps = []
+    
+    def act(self, state, training=True):
+        """Choose action using epsilon-greedy policy"""
+        if training and np.random.random() <= self.epsilon:
+            return np.random.choice(self.action_size)
+        
+        q_values = self.q_network.forward(state)
+        return np.argmax(q_values)
+    
+    def remember(self, state, action, reward, next_state, done):
+        """Store experience in memory"""
+        self.memory.push(state, action, reward, next_state, done)
+    
+    def replay(self):
+        """Train the network on a batch of experiences"""
+        if len(self.memory) < self.batch_size:
+            return
+        
+        experiences = self.memory.sample(self.batch_size)
+        
+        for state, action, reward, next_state, done in experiences:
+            target = reward
+            if not done:
+                next_q_values = self.target_network.forward(next_state)
+                target = reward + self.gamma * np.max(next_q_values)
+            
+            # Get current Q values
+            current_q_values = self.q_network.forward(state)
+            target_q_values = current_q_values.copy()
+            target_q_values[action] = target
+            
+            # Train network
+            self.q_network.backward(state, target_q_values)
+        
+        # Decay exploration
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
+        
+        # Update target network periodically
+        self.update_counter += 1
+        if self.update_counter % self.update_target_frequency == 0:
+            self.target_network = self.q_network.copy()
+    
+    def train(self, environment: Environment, episodes: int = 1000, verbose: bool = True):
+        """Train the agent in the given environment"""
+        self.episode_rewards = []
+        self.episode_steps = []
+        
+        for episode in range(episodes):
+            state = environment.reset()
+            total_reward = 0
+            steps = 0
+            
+            while True:
+                action = self.act(state)
+                next_state, reward, done, _ = environment.step(action)
+                
+                self.remember(state, action, reward, next_state, done)
+                state = next_state
+                total_reward += reward
+                steps += 1
+                
+                if done:
+                    break
+                
+                # Prevent infinite episodes
+                if steps > 1000:
+                    break
+            
+            self.episode_rewards.append(total_reward)
+            self.episode_steps.append(steps)
+            
+            # Train on experiences
+            self.replay()
+            
+            if verbose and episode % 50 == 0:
+                avg_reward = np.mean(self.episode_rewards[-50:]) if len(self.episode_rewards) >= 50 else np.mean(self.episode_rewards)
+                avg_steps = np.mean(self.episode_steps[-50:]) if len(self.episode_steps) >= 50 else np.mean(self.episode_steps)
+                print(f"Episode {episode}, Avg Reward: {avg_reward:.2f}, Avg Steps: {avg_steps:.2f}, Epsilon: {self.epsilon:.3f}")
+    
+    def test(self, environment: Environment, episodes: int = 10):
+        """Test the trained agent"""
+        print("--- Testing Trained Agent ---")
+        test_rewards = []
+        test_results = []
+        
+        for episode in range(episodes):
+            state = environment.reset()
+            total_reward = 0
+            steps = 0
+            episode_states = []
+            
+            while True:
+                action = self.act(state, training=False)  # No exploration
+                episode_states.append((state, action, environment.agent_pos.copy() if hasattr(environment, 'agent_pos') else None))
+                state, reward, done, _ = environment.step(action)
+                total_reward += reward
+                steps += 1
+                
+                if done or steps > 50:
+                    break
+            
+            test_rewards.append(total_reward)
+            test_results.append({
+                'episode': episode + 1,
+                'reward': total_reward,
+                'steps': steps,
+                'states': episode_states
+            })
+            
+            print(f"Test Episode {episode + 1}: Reward = {total_reward}, Steps = {steps}")
+        
+        avg_test_reward = np.mean(test_rewards)
+        print(f"Average test reward: {avg_test_reward:.2f}")
+        
+        return test_results, avg_test_reward
+
+class LearningAI:
+    """Main AI class that can learn different tasks"""
+    
+    def __init__(self):
+        self.agents = {}  # Store different specialized agents
+        self.environments = {}
+        self.current_task = None
+    
+    def add_task(self, task_name: str, environment: Environment):
+        """Add a new task for the AI to learn"""
+        self.environments[task_name] = environment
+        
+        # Create specialized agent for this task
+        state_size = environment.get_state_size()
+        action_size = environment.get_action_size()
+        self.agents[task_name] = DQNAgent(state_size, action_size)
+        
+        print(f"Added task '{task_name}' with state size {state_size} and {action_size} actions")
+    
+    def learn_task(self, task_name: str, episodes: int = 1000):
+        """Train the AI on a specific task"""
+        if task_name not in self.agents:
+            print(f"Task '{task_name}' not found!")
+            return
+        
+        print(f"=== Learning Task: {task_name} ===")
+        agent = self.agents[task_name]
+        environment = self.environments[task_name]
+        
+        agent.train(environment, episodes)
+        self.current_task = task_name
+        
+        print(f"Finished learning '{task_name}'!")
+        return agent
+    
+    def demonstrate_task(self, task_name: str, episodes: int = 3):
+        """Show the AI performing a learned task"""
+        if task_name not in self.agents:
+            print(f"Task '{task_name}' not found!")
+            return None, 0
+        
+        print(f"=== Demonstrating Task: {task_name} ===")
+        agent = self.agents[task_name]
+        environment = self.environments[task_name]
+        
+        return agent.test(environment, episodes)
+    
+    def get_learning_progress(self, task_name: str):
+        """Get learning statistics for a task"""
+        if task_name not in self.agents:
+            return None
+        
+        agent = self.agents[task_name]
+        if not agent.episode_rewards:
+            return None
+        
+        recent_performance = np.mean(agent.episode_rewards[-100:]) if len(agent.episode_rewards) >= 100 else np.mean(agent.episode_rewards)
+        
+        return {
+            'episodes_trained': len(agent.episode_rewards),
+            'recent_avg_reward': recent_performance,
+            'best_reward': max(agent.episode_rewards),
+            'exploration_rate': agent.epsilon,
+            'all_rewards': agent.episode_rewards.copy()
+        }
+
+# Global AI instance
+global_ai = LearningAI()
+print("AI Learning System initialized successfully!")
+                `);
+
+                updateStatus('AI System ready!', 'ready');
+                enableControls();
+                log('🎉 Real AI Learning System loaded and ready!');
+                log('💡 Your Python code is now running in the browser via WebAssembly.');
+                log('📚 Select a task and start training to see genuine neural network learning!');
+                
+            } catch (error) {
+                console.error('Error initializing:', error);
+                updateStatus('Failed to load Python environment', 'error');
+                log(`❌ Error: ${error.message}`);
+            }
+        }
+
+        function updateStatus(message, type) {
+            const statusEl = document.getElementById('python-status');
+            const scrollBtn = document.getElementById('scroll-demo');
+            
+            statusEl.className = `status-indicator status-${type}`;
+            
+            if (type === 'loading') {
+                statusEl.innerHTML = `<span class="loading"></span> ${message}`;
+            } else if (type === 'ready') {
+                statusEl.innerHTML = `✅ ${message}`;
+                scrollBtn.disabled = false;
+            } else if (type === 'error') {
+                statusEl.innerHTML = `❌ ${message}`;
+            }
+        }
+
+        function enableControls() {
+            document.getElementById('start-training').disabled = false;
+        }
+
+        function log(message) {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.innerHTML += `<div style="color: #94a3b8; display: inline;">[${timestamp}]</div> ${message}<br>`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        async function startTraining() {
+            if (isTraining) return;
+            
+            const taskType = document.getElementById('task-type').value;
+            const episodes = parseInt(document.getElementById('episodes').value);
+            const gridSize = parseInt(document.getElementById('grid-size').value);
+            
+            const startBtn = document.getElementById('start-training');
+            startBtn.disabled = true;
+            startBtn.innerHTML = '<span class="loading"></span> Training Real AI...';
+            
+            isTraining = true;
+            currentTrainingTask = taskType;
+            
+            try {
+                log(`🎯 Creating ${taskType} task...`);
+                
+                if (taskType === 'navigation') {
+                    // Create navigation task
+                    pyodide.runPython(`
+import sys
+from io import StringIO
+
+# Capture output
+old_stdout = sys.stdout
+sys.stdout = captured_output = StringIO()
+
+# Create navigation environment
+grid_env = GridWorldEnvironment(width=${gridSize}, height=${gridSize})
+global_ai.add_task("navigation", grid_env)
+current_env = grid_env
+
+# Get the output
+output = captured_output.getvalue()
+sys.stdout = old_stdout
+                    `);
+                    
+                    const output = pyodide.runPython("output");
+                    log(output);
+                    
+                } else if (taskType === 'sorting') {
+                    // Create sorting task
+                    pyodide.runPython(`
+import sys
+from io import StringIO
+
+old_stdout = sys.stdout
+sys.stdout = captured_output = StringIO()
+
+sorting_env = TaskEnvironment(task_type="sorting")
+global_ai.add_task("sorting", sorting_env)
+current_env = sorting_env
+
+output = captured_output.getvalue()
+sys.stdout = old_stdout
+                    `);
+                    
+                    const output = pyodide.runPython("output");
+                    log(output);
+                }
+                
+                // Show initial environment
+                updateVisualization();
+                
+                log(`🚀 Starting real neural network training for ${episodes} episodes...`);
+                
+                // Show progress bar
+                const progressContainer = document.getElementById('progress-container');
+                const progressFill = document.getElementById('progress-fill');
+                const progressText = document.getElementById('progress-text');
+                progressContainer.style.display = 'block';
+                
+                // Start training with progress updates
+                await trainWithProgress(taskType, episodes);
+                
+                log('✅ Training complete! Neural network has learned the task.');
+                document.getElementById('test-ai').disabled = false;
+                document.getElementById('show-progress').disabled = false;
+                
+            } catch (error) {
+                log(`❌ Training error: ${error.message}`);
+                console.error(error);
+            } finally {
+                isTraining = false;
+                startBtn.disabled = false;
+                startBtn.innerHTML = '🚀 Start Real AI Training';
+            }
+        }
+
+        async function trainWithProgress(taskType, episodes) {
+            return new Promise((resolve, reject) => {
+                let episode = 0;
+                
+                const trainStep = () => {
+                    try {
+                        // Train for a batch of episodes
+                        const batchSize = Math.min(10, episodes - episode);
+                        
+                        pyodide.runPython(`
+import sys
+from io import StringIO
+
+old_stdout = sys.stdout
+sys.stdout = captured_output = StringIO()
+
+# Train for ${batchSize} episodes
+agent = global_ai.agents["${taskType}"]
+environment = global_ai.environments["${taskType}"]
+
+for ep in range(${batchSize}):
+    state = environment.reset()
+    total_reward = 0
+    steps = 0
+    
+    while True:
+        action = agent.act(state)
+        next_state, reward, done, _ = environment.step(action)
+        
+        agent.remember(state, action, reward, next_state, done)
+        state = next_state
+        total_reward += reward
+        steps += 1
+        
+        if done or steps > 200:
+            break
+    
+    agent.episode_rewards.append(total_reward)
+    agent.episode_steps.append(steps)
+    agent.replay()
+
+# Get recent performance
+recent_rewards = agent.episode_rewards[-10:] if len(agent.episode_rewards) >= 10 else agent.episode_rewards
+avg_reward = sum(recent_rewards) / len(recent_rewards) if recent_rewards else 0
+
+output = captured_output.getvalue()
+sys.stdout = old_stdout
+                        `);
+                        
+                        episode += batchSize;
+                        const progress = (episode / episodes) * 100;
+                        const avgReward = pyodide.runPython("avg_reward");
+                        
+                        // Update progress
+                        document.getElementById('progress-fill').style.width = `${progress}%`;
+                        document.getElementById('progress-text').textContent = 
+                            `Episode ${episode}/${episodes} - Recent Avg Reward: ${avgReward.toFixed(2)}`;
+                        
+                        if (episode % 50 === 0) {
+                            log(`📊 Episode ${episode}: Average reward = ${avgReward.toFixed(2)}`);
+                            updateVisualization();
+                        }
+                        
+                        if (episode < episodes) {
+                            setTimeout(trainStep, 10); // Small delay for UI updates
+                        } else {
+                            resolve();
+                        }
+                        
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                
+                trainStep();
+            });
+        }
+
+        async function testAI() {
+            if (!currentTrainingTask) {
+                log('❌ No trained AI available!');
+                return;
+            }
+            
+            const testBtn = document.getElementById('test-ai');
+            testBtn.disabled = true;
+            testBtn.innerHTML = '<span class="loading"></span> Testing...';
+            
+            try {
+                log('🎯 Testing trained AI agent...');
+                
+                pyodide.runPython(`
+import sys
+from io import StringIO
+
+old_stdout = sys.stdout
+sys.stdout = captured_output = StringIO()
+
+# Test the trained agent
+test_results, avg_reward = global_ai.demonstrate_task("${currentTrainingTask}", episodes=3)
+
+output = captured_output.getvalue()
+sys.stdout = old_stdout
+                `);
+                
+                const output = pyodide.runPython("output");
+                const testResults = pyodide.runPython("test_results");
+                const avgReward = pyodide.runPython("avg_reward");
+                
+                log(output);
+                log(`🏆 Average test performance: ${avgReward.toFixed(2)}`);
+                
+                // Show test visualization
+                if (currentTrainingTask === 'navigation') {
+                    await visualizeTestRun(testResults);
+                }
+                
+            } catch (error) {
+                log(`❌ Testing error: ${error.message}`);
+                console.error(error);
+            } finally {
+                testBtn.disabled = false;
+                testBtn.innerHTML = '🎯 Test Trained AI';
+            }
+        }
+
+        async function showProgress() {
+            if (!currentTrainingTask) {
+                log('❌ No training data available!');
+                return;
+            }
+            
+            try {
+                log('📊 Analyzing learning progress...');
+                
+                pyodide.runPython(`
+progress = global_ai.get_learning_progress("${currentTrainingTask}")
+                `);
+                
+                const progress = pyodide.runPython("progress.to_py()");
+                
+                log(`📈 Training Statistics:`);
+                log(`   • Episodes trained: ${progress.get('episodes_trained')}`);
+                log(`   • Recent avg reward: ${progress.get('recent_avg_reward').toFixed(2)}`);
+                log(`   • Best reward: ${progress.get('best_reward').toFixed(2)}`);
+                log(`   • Current exploration rate: ${progress.get('exploration_rate').toFixed(3)}`);
+                
+                // Show learning curve
+                const rewards = progress.get('all_rewards');
+                if (rewards && rewards.length > 0) {
+                    log('📉 Learning curve (last 20 episodes):');
+                    const recent = rewards.slice(-20);
+                    const curve = recent.map((r, i) => `Ep ${rewards.length - 20 + i + 1}: ${r.toFixed(1)}`).join(', ');
+                    log(`   ${curve}`);
+                }
+                
+            } catch (error) {
+                log(`❌ Progress analysis error: ${error.message}`);
+                console.error(error);
+            }
+        }
+
+        function updateVisualization() {
+            if (!currentTrainingTask) return;
+            
+            try {
+                if (currentTrainingTask === 'navigation') {
+                    // Get current environment state
+                    pyodide.runPython(`
+env = global_ai.environments["navigation"]
+grid_data = env.render()
+agent_pos = env.agent_pos
+goal_pos = env.goal_pos
+walls = env.walls
+                    `);
+                    
+                    const gridData = pyodide.runPython("grid_data");
+                    const agentPos = pyodide.runPython("agent_pos");
+                    const goalPos = pyodide.runPython("goal_pos");
+                    const walls = pyodide.runPython("walls");
+                    
+                    // Show visualization
+                    const viz = document.getElementById('visualization');
+                    const gridDisplay = document.getElementById('grid-display');
+                    const metrics = document.getElementById('metrics');
+                    
+                    viz.style.display = 'block';
+                    
+                    // Create grid HTML
+                    let gridHTML = '<div class="grid-display">';
+                    for (let row of gridData) {
+                        gridHTML += '<div class="grid-row">';
+                        for (let cell of row) {
+                            let cellClass = 'empty';
+                            if (cell === 'A') cellClass = 'agent';
+                            else if (cell === 'G') cellClass = 'goal';
+                            else if (cell === '#') cellClass = 'wall';
+                            
+                            gridHTML += `<div class="grid-cell ${cellClass}">${cell}</div>`;
+                        }
+                        gridHTML += '</div>';
+                    }
+                    gridHTML += '</div>';
+                    
+                    gridDisplay.innerHTML = gridHTML;
+                    
+                    // Update metrics
+                    metrics.innerHTML = `
+                        <div class="metric-row">
+                            <span>Agent Position:</span>
+                            <span>(${agentPos[0]}, ${agentPos[1]})</span>
+                        </div>
+                        <div class="metric-row">
+                            <span>Goal Position:</span>
+                            <span>(${goalPos[0]}, ${goalPos[1]})</span>
+                        </div>
+                        <div class="metric-row">
+                            <span>Walls:</span>
+                            <span>${walls.length} obstacles</span>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Visualization error:', error);
+            }
+        }
+
+        async function visualizeTestRun(testResults) {
+            if (!testResults || testResults.length === 0) return;
+            
+            log('🎬 Visualizing AI test run...');
+            
+            // Show the first test episode step by step
+            const episode = testResults[0];
+            const states = episode.states || [];
+            
+            for (let i = 0; i < Math.min(states.length, 10); i++) {
+                const [state, action, pos] = states[i];
+                
+                if (pos) {
+                    // Update environment position
+                    pyodide.runPython(`
+env = global_ai.environments["navigation"]
+env.agent_pos = [${pos[0]}, ${pos[1]}]
+                    `);
+                    
+                    updateVisualization();
+                    
+                    const actionNames = ['Up', 'Right', 'Down', 'Left'];
+                    log(`   Step ${i + 1}: Action = ${actionNames[action] || action}, Position = (${pos[0]}, ${pos[1]})`);
+                    
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
+            
+            log('✅ Test visualization complete!');
+        }
+
+        function resetDemo() {
+            pyodide.runPython(`
+# Reset the AI system
+global_ai = LearningAI()
+print("AI system reset")
+            `);
+            
+            currentTrainingTask = null;
+            isTraining = false;
+            
+            document.getElementById('output').innerHTML = `
+                <div style="color: #4ade80; font-weight: bold;">🤖 Real AI Learning System Console</div>
+                <div style="color: #94a3b8; margin-bottom: 1rem;">System reset - ready for new task...</div>
+                <div>Real Python neural networks ready for training!</div>
+            `;
+            
+            document.getElementById('progress-container').style.display = 'none';
+            document.getElementById('test-ai').disabled = true;
+            document.getElementById('show-progress').disabled = true;
+            document.getElementById('visualization').style.display = 'none';
+            document.getElementById('start-training').disabled = false;
+            document.getElementById('start-training').innerHTML = '🚀 Start Real AI Training';
+            
+            log('🔄 Demo reset - AI system reinitialized');
+        }
+
+        function scrollToDemo() {
+            document.getElementById('demo').scrollIntoView({ behavior: 'smooth' });
         }
 
         // Task type change handler
@@ -867,19 +1438,10 @@ if __name__ == "__main__":
             }
         });
 
-        // Smooth scrolling for navigation links
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    target.scrollIntoView({ behavior: 'smooth' });
-                }
-            });
-        });
-
-        // Initialize demo on page load
+        // Initialize everything when page loads
         window.addEventListener('load', function() {
-            aiSystem.log('🎉 AI Learning System loaded and ready!');
-            aiSystem.log('💡 Select a task and start training to see the AI learn in real-time.');
+            initializePyodide();
         });
+    </script>
+</body>
+</html>

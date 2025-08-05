@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Learning System - Live Demo</title>
+    <title>AI Learning System - Persistent Memory Demo</title>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
     <style>
         * {
@@ -112,6 +112,17 @@
             border: 2px solid #dc3545;
         }
 
+        .memory-indicator {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            margin-left: 1rem;
+            background: rgba(138, 43, 226, 0.2);
+            color: #8a2be2;
+            border: 2px solid #8a2be2;
+        }
+
         .cta-button {
             display: inline-block;
             background: linear-gradient(45deg, #ff6b6b, #ee5a24);
@@ -218,6 +229,16 @@
             cursor: not-allowed;
         }
 
+        .memory-button {
+            background: linear-gradient(45deg, #8a2be2, #9932cc);
+            font-size: 0.9rem;
+            padding: 0.8rem 1.5rem;
+        }
+
+        .danger-button {
+            background: linear-gradient(45deg, #dc3545, #c82333);
+        }
+
         .progress-bar {
             width: 100%;
             height: 20px;
@@ -232,6 +253,43 @@
             background: linear-gradient(45deg, #667eea, #764ba2);
             width: 0%;
             transition: width 0.3s ease;
+        }
+
+        .memory-section {
+            background: #f8f9fa;
+            border: 2px solid #8a2be2;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .memory-section h4 {
+            color: #8a2be2;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .memory-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .memory-stat {
+            background: rgba(138, 43, 226, 0.1);
+            padding: 0.5rem;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .memory-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
         }
 
         .features {
@@ -315,6 +373,26 @@
             animation: spin 1s linear infinite;
         }
 
+        .file-input {
+            display: none;
+        }
+
+        .file-label {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: bold;
+            display: inline-block;
+            transition: transform 0.3s ease;
+        }
+
+        .file-label:hover {
+            transform: translateY(-2px);
+        }
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -356,6 +434,7 @@
             .hero h1 { font-size: 2.5rem; }
             .demo-container { grid-template-columns: 1fr; }
             .nav-links { display: none; }
+            .memory-controls { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -363,11 +442,11 @@
     <header>
         <div class="container">
             <div class="header-content">
-                <div class="logo">🤖 AI Learning System</div>
+                <div class="logo">🧠 Persistent AI System</div>
                 <nav class="nav-links">
                     <a href="#demo">Live Demo</a>
                     <a href="#features">Features</a>
-                    <a href="#code">Source Code</a>
+                    <a href="#memory">Memory</a>
                 </nav>
             </div>
         </div>
@@ -375,20 +454,52 @@
 
     <section class="hero">
         <div class="container">
-            <h1>Action-Learning AI System</h1>
-            <p>Real reinforcement learning running in your browser with Python + WebAssembly</p>
+            <h1>Forever-Learning AI System</h1>
+            <p>Real reinforcement learning with persistent memory - AI that never forgets!</p>
             <div class="status-indicator" id="python-status">
                 <span class="loading"></span> Loading Python Environment...
             </div>
-            <button class="cta-button" id="scroll-demo" onclick="scrollToDemo()" disabled>Try Live Demo</button>
+            <div class="memory-indicator" id="memory-status">
+                💾 Memory: Initializing...
+            </div>
+            <button class="cta-button" id="scroll-demo" onclick="scrollToDemo()" disabled>Try Persistent Demo</button>
         </div>
     </section>
 
     <section class="demo-section" id="demo">
         <div class="container">
-            <h2 style="text-align: center; margin-bottom: 3rem; font-size: 2.5rem;">Live AI Demo</h2>
+            <h2 style="text-align: center; margin-bottom: 3rem; font-size: 2.5rem;">Persistent AI Demo</h2>
             <div class="demo-container">
                 <div class="demo-controls">
+                    <div class="memory-section">
+                        <h4>🧠 AI Memory System</h4>
+                        <div class="memory-stats">
+                            <div class="memory-stat">
+                                <strong id="stored-tasks">0</strong><br>
+                                <small>Stored Tasks</small>
+                            </div>
+                            <div class="memory-stat">
+                                <strong id="total-episodes">0</strong><br>
+                                <small>Total Episodes</small>
+                            </div>
+                            <div class="memory-stat">
+                                <strong id="memory-size">0 KB</strong><br>
+                                <small>Memory Used</small>
+                            </div>
+                            <div class="memory-stat">
+                                <strong id="last-saved">Never</strong><br>
+                                <small>Last Saved</small>
+                            </div>
+                        </div>
+                        <div class="memory-controls">
+                            <button class="demo-button memory-button" onclick="saveMemory()">💾 Save Progress</button>
+                            <button class="demo-button memory-button" onclick="loadMemory()">📁 Load Progress</button>
+                            <button class="demo-button memory-button" onclick="exportMemory()">📤 Export Data</button>
+                            <input type="file" id="import-file" class="file-input" accept=".json" onchange="importMemory(event)">
+                            <label for="import-file" class="file-label">📥 Import Data</label>
+                        </div>
+                    </div>
+
                     <h3 style="margin-bottom: 2rem;">Real AI Training Controls</h3>
                     
                     <div class="form-group">
@@ -418,7 +529,7 @@
                     </div>
 
                     <button class="demo-button" id="start-training" onclick="startTraining()" disabled>
-                        🚀 Start Real AI Training
+                        🚀 Start Persistent Training
                     </button>
 
                     <div class="progress-bar" style="display: none;" id="progress-container">
@@ -427,15 +538,19 @@
                     <div id="progress-text" style="text-align: center; margin-bottom: 1rem; font-weight: bold;"></div>
 
                     <button class="demo-button" id="test-ai" onclick="testAI()" disabled>
-                        🎯 Test Trained AI
+                        🎯 Test Persistent AI
                     </button>
 
                     <button class="demo-button" id="show-progress" onclick="showProgress()" disabled>
-                        📊 Show Learning Progress
+                        📊 Show Learning History
                     </button>
 
-                    <button class="demo-button" onclick="resetDemo()">
-                        🔄 Reset Demo
+                    <button class="demo-button" id="continue-training" onclick="continueTraining()" disabled>
+                        🔄 Continue Training
+                    </button>
+
+                    <button class="demo-button danger-button" onclick="clearMemory()">
+                        🗑️ Clear All Memory
                     </button>
 
                     <div class="visualization" id="visualization" style="display: none;">
@@ -446,9 +561,9 @@
                 </div>
 
                 <div class="demo-output" id="output">
-                    <div style="color: #4ade80; font-weight: bold;">🤖 Real AI Learning System Console</div>
-                    <div style="color: #94a3b8; margin-bottom: 1rem;">Powered by your Python code + Pyodide WebAssembly</div>
-                    <div id="init-status">Initializing Python environment...</div>
+                    <div style="color: #4ade80; font-weight: bold;">🧠 Persistent AI Learning System Console</div>
+                    <div style="color: #94a3b8; margin-bottom: 1rem;">AI with Forever Memory - Never loses progress!</div>
+                    <div id="init-status">Initializing persistent memory system...</div>
                 </div>
             </div>
         </div>
@@ -456,23 +571,31 @@
 
     <section class="features" id="features">
         <div class="container">
-            <h2>Real System Capabilities</h2>
+            <h2>Persistent AI Capabilities</h2>
             <div class="feature-grid">
                 <div class="feature-card">
-                    <h3>🐍 Real Python Code</h3>
-                    <p>Your actual AI learning system running in the browser via WebAssembly. No simulation - this is the real deal!</p>
+                    <h3>💾 Forever Memory</h3>
+                    <p>AI training data persists forever in browser storage. Resume training anytime from exactly where you left off!</p>
                 </div>
                 <div class="feature-card">
-                    <h3>🧠 Deep Q-Networks</h3>
-                    <p>Genuine neural network training with experience replay, target networks, and epsilon-greedy exploration.</p>
+                    <h3>📊 Learning History</h3>
+                    <p>Complete training history, performance metrics, and neural network weights are automatically saved and restored.</p>
                 </div>
                 <div class="feature-card">
-                    <h3>🌍 Live Environments</h3>
-                    <p>Real grid worlds and task environments with actual state spaces, actions, and reward functions.</p>
+                    <h3>🔄 Continuous Learning</h3>
+                    <p>AI can continue learning indefinitely across browser sessions. Each training session builds on previous knowledge.</p>
                 </div>
                 <div class="feature-card">
-                    <h3>📊 True Learning</h3>
-                    <p>Watch real neural network weights update as the AI genuinely learns through reinforcement learning.</p>
+                    <h3>📤 Portable Knowledge</h3>
+                    <p>Export and import AI knowledge as JSON files. Share trained AIs or backup your progress!</p>
+                </div>
+                <div class="feature-card">
+                    <h3>🧠 Multi-Task Memory</h3>
+                    <p>Store multiple trained AIs simultaneously. Each task type maintains its own persistent learning progress.</p>
+                </div>
+                <div class="feature-card">
+                    <h3>⚡ Instant Resume</h3>
+                    <p>No training time lost! Instantly resume from your last session with all neural network weights intact.</p>
                 </div>
             </div>
         </div>
@@ -480,8 +603,8 @@
 
     <footer>
         <div class="container">
-            <p>&copy; 2025 AI Learning System. Real Python reinforcement learning in your browser!</p>
-            <p>Powered by Pyodide WebAssembly - no backend servers required.</p>
+            <p>&copy; 2025 Persistent AI Learning System. AI that truly never forgets!</p>
+            <p>Powered by Pyodide WebAssembly + Browser Persistent Storage</p>
         </div>
     </footer>
 
@@ -490,10 +613,74 @@
         let aiSystem;
         let currentTrainingTask = null;
         let isTraining = false;
+        let memoryDB;
 
-        // Initialize Pyodide and load the AI system
+        // Memory management variables
+        let persistentData = {
+            tasks: {},
+            totalEpisodes: 0,
+            memorySize: 0,
+            lastSaved: null
+        };
+
+        // Initialize IndexedDB for persistent storage
+        async function initializeMemoryDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('AILearningSystem', 1);
+                
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    memoryDB = request.result;
+                    resolve(memoryDB);
+                };
+                
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains('aiData')) {
+                        db.createObjectStore('aiData', { keyPath: 'id' });
+                    }
+                };
+            });
+        }
+
+        // Save AI data to persistent storage
+        async function saveToMemory(key, data) {
+            if (!memoryDB) return;
+            
+            const transaction = memoryDB.transaction(['aiData'], 'readwrite');
+            const store = transaction.objectStore('aiData');
+            
+            await store.put({
+                id: key,
+                data: data,
+                timestamp: Date.now()
+            });
+            
+            updateMemoryStats();
+        }
+
+        // Load AI data from persistent storage
+        async function loadFromMemory(key) {
+            if (!memoryDB) return null;
+            
+            const transaction = memoryDB.transaction(['aiData'], 'readonly');
+            const store = transaction.objectStore('aiData');
+            const request = store.get(key);
+            
+            return new Promise((resolve) => {
+                request.onsuccess = () => {
+                    resolve(request.result ? request.result.data : null);
+                };
+                request.onerror = () => resolve(null);
+            });
+        }
+
+        // Initialize Pyodide and load the AI system with memory
         async function initializePyodide() {
             try {
+                updateStatus('Initializing persistent memory...', 'loading');
+                await initializeMemoryDB();
+                
                 updateStatus('Loading Python runtime...', 'loading');
                 pyodide = await loadPyodide();
                 
@@ -502,7 +689,7 @@
                 
                 updateStatus('Loading AI Learning System...', 'loading');
                 
-                // Load your complete AI learning system code
+                // Load the complete AI learning system code with memory support
                 pyodide.runPython(`
 import numpy as np
 import json
@@ -512,6 +699,7 @@ import random
 from abc import ABC, abstractmethod
 import time
 
+# [Previous AI system code here - same as before]
 class Memory:
     """Experience replay memory for storing and learning from past actions"""
     
@@ -618,32 +806,51 @@ class NeuralNetwork:
             }
             new_net.layers.append(new_layer)
         return new_net
+    
+    def to_dict(self):
+        """Serialize network to dictionary"""
+        return {
+            'learning_rate': self.learning_rate,
+            'layers': [{
+                'weights': layer['weights'].tolist(),
+                'biases': layer['biases'].tolist()
+            } for layer in self.layers]
+        }
+    
+    def from_dict(self, data):
+        """Load network from dictionary"""
+        self.learning_rate = data['learning_rate']
+        self.layers = []
+        for layer_data in data['layers']:
+            layer = {
+                'weights': np.array(layer_data['weights']),
+                'biases': np.array(layer_data['biases']),
+                'activations': None,
+                'z_values': None
+            }
+            self.layers.append(layer)
 
 class Environment(ABC):
     """Abstract base class for environments the AI can learn in"""
     
     @abstractmethod
     def reset(self):
-        """Reset environment to initial state"""
         pass
     
     @abstractmethod
     def step(self, action):
-        """Take an action and return (next_state, reward, done, info)"""
         pass
     
     @abstractmethod
     def get_state_size(self):
-        """Return the size of the state space"""
         pass
     
     @abstractmethod
     def get_action_size(self):
-        """Return the size of the action space"""
         pass
 
 class GridWorldEnvironment(Environment):
-    """Simple grid world for the AI to navigate"""
+    """Grid world environment"""
     
     def __init__(self, width: int = 5, height: int = 5):
         self.width = width
@@ -659,12 +866,12 @@ class GridWorldEnvironment(Environment):
         """Reset to starting position"""
         self.agent_pos = [0, 0]
         self.goal_pos = [self.width-1, self.height-1]
-        self.walls = [(2, 2), (2, 3), (3, 2)] if self.width >= 4 else []  # Some walls
+        self.walls = [(2, 2), (2, 3), (3, 2)] if self.width >= 4 else []
         return self.get_state()
     
     def get_state(self):
         """Get current state representation"""
-        state = np.zeros(self.width * self.height + 4)  # Grid + agent pos + goal pos
+        state = np.zeros(self.width * self.height + 4)
         
         # One-hot encode agent position
         agent_idx = self.agent_pos[1] * self.width + self.agent_pos[0]
@@ -798,8 +1005,8 @@ class TaskEnvironment(Environment):
         if self.task_type == "sorting":
             return 5  # 4 swaps + 1 do nothing
 
-class DQNAgent:
-    """Deep Q-Network agent that learns to perform tasks"""
+class PersistentDQNAgent:
+    """DQN Agent with persistent memory capabilities"""
     
     def __init__(self, state_size: int, action_size: int, learning_rate: float = 0.01):
         self.state_size = state_size
@@ -807,10 +1014,10 @@ class DQNAgent:
         self.memory = Memory(capacity=2000)
         
         # Hyperparameters
-        self.epsilon = 1.0  # Exploration rate
+        self.epsilon = 1.0
         self.epsilon_min = 0.01
         self.epsilon_decay = 0.995
-        self.gamma = 0.95  # Discount factor
+        self.gamma = 0.95
         self.batch_size = 32
         
         # Neural networks
@@ -820,9 +1027,10 @@ class DQNAgent:
         self.update_counter = 0
         
         # Training stats
-        self.total_reward = 0
         self.episode_rewards = []
         self.episode_steps = []
+        self.total_training_time = 0
+        self.sessions = []
     
     def act(self, state, training=True):
         """Choose action using epsilon-greedy policy"""
@@ -867,9 +1075,9 @@ class DQNAgent:
             self.target_network = self.q_network.copy()
     
     def train(self, environment: Environment, episodes: int = 1000, verbose: bool = True):
-        """Train the agent in the given environment"""
-        self.episode_rewards = []
-        self.episode_steps = []
+        """Train the agent with session tracking"""
+        session_start = len(self.episode_rewards)
+        session_rewards = []
         
         for episode in range(episodes):
             state = environment.reset()
@@ -885,27 +1093,30 @@ class DQNAgent:
                 total_reward += reward
                 steps += 1
                 
-                if done:
-                    break
-                
-                # Prevent infinite episodes
-                if steps > 1000:
+                if done or steps > 1000:
                     break
             
             self.episode_rewards.append(total_reward)
             self.episode_steps.append(steps)
+            session_rewards.append(total_reward)
             
             # Train on experiences
             self.replay()
             
             if verbose and episode % 50 == 0:
-                avg_reward = np.mean(self.episode_rewards[-50:]) if len(self.episode_rewards) >= 50 else np.mean(self.episode_rewards)
-                avg_steps = np.mean(self.episode_steps[-50:]) if len(self.episode_steps) >= 50 else np.mean(self.episode_steps)
-                print(f"Episode {episode}, Avg Reward: {avg_reward:.2f}, Avg Steps: {avg_steps:.2f}, Epsilon: {self.epsilon:.3f}")
+                avg_reward = np.mean(session_rewards[-50:]) if len(session_rewards) >= 50 else np.mean(session_rewards)
+                print(f"Episode {session_start + episode}, Session Avg: {avg_reward:.2f}, Epsilon: {self.epsilon:.3f}")
+        
+        # Record session
+        self.sessions.append({
+            'start_episode': session_start,
+            'episodes': episodes,
+            'avg_reward': np.mean(session_rewards),
+            'timestamp': time.time()
+        })
     
     def test(self, environment: Environment, episodes: int = 10):
         """Test the trained agent"""
-        print("--- Testing Trained Agent ---")
         test_rewards = []
         test_results = []
         
@@ -916,7 +1127,7 @@ class DQNAgent:
             episode_states = []
             
             while True:
-                action = self.act(state, training=False)  # No exploration
+                action = self.act(state, training=False)
                 episode_states.append((state, action, environment.agent_pos.copy() if hasattr(environment, 'agent_pos') else None))
                 state, reward, done, _ = environment.step(action)
                 total_reward += reward
@@ -932,21 +1143,62 @@ class DQNAgent:
                 'steps': steps,
                 'states': episode_states
             })
-            
-            print(f"Test Episode {episode + 1}: Reward = {total_reward}, Steps = {steps}")
         
         avg_test_reward = np.mean(test_rewards)
-        print(f"Average test reward: {avg_test_reward:.2f}")
-        
         return test_results, avg_test_reward
+    
+    def to_dict(self):
+        """Serialize agent to dictionary for persistence"""
+        return {
+            'state_size': self.state_size,
+            'action_size': self.action_size,
+            'epsilon': self.epsilon,
+            'epsilon_min': self.epsilon_min,
+            'epsilon_decay': self.epsilon_decay,
+            'gamma': self.gamma,
+            'update_counter': self.update_counter,
+            'q_network': self.q_network.to_dict(),
+            'target_network': self.target_network.to_dict(),
+            'episode_rewards': self.episode_rewards,
+            'episode_steps': self.episode_steps,
+            'total_training_time': self.total_training_time,
+            'sessions': self.sessions
+        }
+    
+    def from_dict(self, data):
+        """Load agent from dictionary"""
+        self.state_size = data['state_size']
+        self.action_size = data['action_size']
+        self.epsilon = data['epsilon']
+        self.epsilon_min = data['epsilon_min']
+        self.epsilon_decay = data['epsilon_decay']
+        self.gamma = data['gamma']
+        self.update_counter = data['update_counter']
+        
+        # Restore neural networks
+        self.q_network = NeuralNetwork(self.state_size, [64, 64], self.action_size)
+        self.q_network.from_dict(data['q_network'])
+        self.target_network = NeuralNetwork(self.state_size, [64, 64], self.action_size)
+        self.target_network.from_dict(data['target_network'])
+        
+        # Restore training history
+        self.episode_rewards = data['episode_rewards']
+        self.episode_steps = data['episode_steps']
+        self.total_training_time = data.get('total_training_time', 0)
+        self.sessions = data.get('sessions', [])
 
-class LearningAI:
-    """Main AI class that can learn different tasks"""
+class PersistentLearningAI:
+    """AI system with full persistent memory"""
     
     def __init__(self):
-        self.agents = {}  # Store different specialized agents
+        self.agents = {}
         self.environments = {}
         self.current_task = None
+        self.system_stats = {
+            'total_episodes': 0,
+            'total_tasks': 0,
+            'creation_time': time.time()
+        }
     
     def add_task(self, task_name: str, environment: Environment):
         """Add a new task for the AI to learn"""
@@ -955,9 +1207,10 @@ class LearningAI:
         # Create specialized agent for this task
         state_size = environment.get_state_size()
         action_size = environment.get_action_size()
-        self.agents[task_name] = DQNAgent(state_size, action_size)
+        self.agents[task_name] = PersistentDQNAgent(state_size, action_size)
         
-        print(f"Added task '{task_name}' with state size {state_size} and {action_size} actions")
+        self.system_stats['total_tasks'] += 1
+        print(f"Added persistent task '{task_name}' with state size {state_size} and {action_size} actions")
     
     def learn_task(self, task_name: str, episodes: int = 1000):
         """Train the AI on a specific task"""
@@ -965,14 +1218,15 @@ class LearningAI:
             print(f"Task '{task_name}' not found!")
             return
         
-        print(f"=== Learning Task: {task_name} ===")
+        print(f"=== Learning Task: {task_name} (Session {len(self.agents[task_name].sessions) + 1}) ===")
         agent = self.agents[task_name]
         environment = self.environments[task_name]
         
         agent.train(environment, episodes)
         self.current_task = task_name
+        self.system_stats['total_episodes'] += episodes
         
-        print(f"Finished learning '{task_name}'!")
+        print(f"Finished learning '{task_name}'! Total episodes: {len(agent.episode_rewards)}")
         return agent
     
     def demonstrate_task(self, task_name: str, episodes: int = 3):
@@ -981,14 +1235,14 @@ class LearningAI:
             print(f"Task '{task_name}' not found!")
             return None, 0
         
-        print(f"=== Demonstrating Task: {task_name} ===")
+        print(f"=== Demonstrating Persistent Task: {task_name} ===")
         agent = self.agents[task_name]
         environment = self.environments[task_name]
         
         return agent.test(environment, episodes)
     
     def get_learning_progress(self, task_name: str):
-        """Get learning statistics for a task"""
+        """Get comprehensive learning statistics"""
         if task_name not in self.agents:
             return None
         
@@ -1003,24 +1257,156 @@ class LearningAI:
             'recent_avg_reward': recent_performance,
             'best_reward': max(agent.episode_rewards),
             'exploration_rate': agent.epsilon,
-            'all_rewards': agent.episode_rewards.copy()
+            'all_rewards': agent.episode_rewards.copy(),
+            'sessions': agent.sessions.copy(),
+            'total_sessions': len(agent.sessions),
+            'avg_session_performance': np.mean([s['avg_reward'] for s in agent.sessions]) if agent.sessions else 0
         }
+    
+    def to_dict(self):
+        """Serialize entire AI system"""
+        return {
+            'system_stats': self.system_stats,
+            'agents': {name: agent.to_dict() for name, agent in self.agents.items()},
+            'current_task': self.current_task,
+            'save_timestamp': time.time()
+        }
+    
+    def from_dict(self, data):
+        """Load entire AI system from data"""
+        self.system_stats = data.get('system_stats', self.system_stats)
+        self.current_task = data.get('current_task')
+        
+        # Restore agents
+        for task_name, agent_data in data.get('agents', {}).items():
+            # Recreate environment based on task type
+            if 'navigation' in task_name:
+                # Extract grid size from agent data or use default
+                grid_size = 5  # Default
+                self.add_task(task_name, GridWorldEnvironment(grid_size, grid_size))
+            elif 'sorting' in task_name:
+                self.add_task(task_name, TaskEnvironment("sorting"))
+            
+            # Load agent data
+            if task_name in self.agents:
+                self.agents[task_name].from_dict(agent_data)
 
-# Global AI instance
-global_ai = LearningAI()
-print("AI Learning System initialized successfully!")
+# Global persistent AI instance
+global_persistent_ai = PersistentLearningAI()
+print("🧠 Persistent AI Learning System initialized!")
                 `);
 
-                updateStatus('AI System ready!', 'ready');
+                // Load any existing persistent data
+                await loadPersistentData();
+                
+                updateStatus('Persistent AI System ready!', 'ready');
                 enableControls();
-                log('🎉 Real AI Learning System loaded and ready!');
-                log('💡 Your Python code is now running in the browser via WebAssembly.');
-                log('📚 Select a task and start training to see genuine neural network learning!');
+                log('🎉 Persistent AI Learning System loaded and ready!');
+                log('💾 Your AI will remember everything forever!');
+                log('🔄 Resume training from exactly where you left off.');
+                
+                updateMemoryStats();
                 
             } catch (error) {
                 console.error('Error initializing:', error);
                 updateStatus('Failed to load Python environment', 'error');
                 log(`❌ Error: ${error.message}`);
+            }
+        }
+
+        async function loadPersistentData() {
+            try {
+                const savedData = await loadFromMemory('aiSystem');
+                if (savedData) {
+                    pyodide.runPython(`
+import json
+saved_data = json.loads('${JSON.stringify(savedData).replace(/'/g, "\\'")}')
+global_persistent_ai.from_dict(saved_data)
+print(f"✅ Loaded persistent data: {len(saved_data.get('agents', {}))} tasks")
+                    `);
+                    
+                    const output = pyodide.runPython(`
+agents_info = []
+for task_name, agent in global_persistent_ai.agents.items():
+    agents_info.append(f"{task_name}: {len(agent.episode_rewards)} episodes")
+"\\n   ".join(agents_info) if agents_info else "No saved tasks"
+                    `);
+                    
+                    log('🔄 Restored persistent AI memory:');
+                    log(`   ${output}`);
+                    
+                    // Enable relevant buttons if we have saved data
+                    if (savedData.agents && Object.keys(savedData.agents).length > 0) {
+                        document.getElementById('continue-training').disabled = false;
+                        document.getElementById('test-ai').disabled = false;
+                        document.getElementById('show-progress').disabled = false;
+                        
+                        if (savedData.current_task) {
+                            currentTrainingTask = savedData.current_task;
+                            document.getElementById('task-type').value = 
+                                savedData.current_task.includes('navigation') ? 'navigation' : 'sorting';
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading persistent data:', error);
+                log('ℹ️ No previous data found - starting fresh');
+            }
+        }
+
+        async function savePersistentData() {
+            try {
+                const aiData = pyodide.runPython(`
+import json
+ai_dict = global_persistent_ai.to_dict()
+json.dumps(ai_dict)
+                `);
+                
+                const parsedData = JSON.parse(aiData);
+                await saveToMemory('aiSystem', parsedData);
+                
+                persistentData.lastSaved = new Date().toLocaleString();
+                log('💾 AI progress saved to persistent memory');
+                return true;
+            } catch (error) {
+                console.error('Error saving:', error);
+                log(`❌ Save error: ${error.message}`);
+                return false;
+            }
+        }
+
+        async function updateMemoryStats() {
+            try {
+                // Get current AI stats
+                const stats = pyodide.runPython(`
+{
+    'total_tasks': len(global_persistent_ai.agents),
+    'total_episodes': sum(len(agent.episode_rewards) for agent in global_persistent_ai.agents.values()),
+    'memory_size': len(str(global_persistent_ai.to_dict()))
+}
+                `);
+                
+                document.getElementById('stored-tasks').textContent = stats.get('total_tasks') || 0;
+                document.getElementById('total-episodes').textContent = stats.get('total_episodes') || 0;
+                document.getElementById('memory-size').textContent = `${Math.round((stats.get('memory_size') || 0) / 1024)} KB`;
+                document.getElementById('last-saved').textContent = persistentData.lastSaved || 'Never';
+                
+                // Update memory status indicator
+                const memoryStatus = document.getElementById('memory-status');
+                const totalTasks = stats.get('total_tasks') || 0;
+                const totalEpisodes = stats.get('total_episodes') || 0;
+                
+                if (totalTasks > 0) {
+                    memoryStatus.textContent = `💾 Memory: ${totalTasks} tasks, ${totalEpisodes} episodes`;
+                    memoryStatus.style.background = 'rgba(40, 167, 69, 0.2)';
+                    memoryStatus.style.color = '#28a745';
+                    memoryStatus.style.borderColor = '#28a745';
+                } else {
+                    memoryStatus.textContent = '💾 Memory: Empty';
+                }
+                
+            } catch (error) {
+                console.error('Error updating memory stats:', error);
             }
         }
 
@@ -1051,6 +1437,126 @@ print("AI Learning System initialized successfully!")
             output.scrollTop = output.scrollHeight;
         }
 
+        // Memory management functions
+        async function saveMemory() {
+            const success = await savePersistentData();
+            if (success) {
+                updateMemoryStats();
+                log('✅ Progress saved to browser memory permanently!');
+            }
+        }
+
+        async function loadMemory() {
+            try {
+                await loadPersistentData();
+                updateMemoryStats();
+                log('✅ Memory loaded successfully!');
+            } catch (error) {
+                log(`❌ Load error: ${error.message}`);
+            }
+        }
+
+        async function exportMemory() {
+            try {
+                const aiData = pyodide.runPython(`
+import json
+ai_dict = global_persistent_ai.to_dict()
+json.dumps(ai_dict, indent=2)
+                `);
+                
+                const blob = new Blob([aiData], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `ai-memory-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                log('📤 AI memory exported successfully!');
+            } catch (error) {
+                log(`❌ Export error: ${error.message}`);
+            }
+        }
+
+        async function importMemory(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+                
+                // Validate data structure
+                if (!data.agents || !data.system_stats) {
+                    throw new Error('Invalid AI memory file format');
+                }
+                
+                pyodide.runPython(`
+import json
+imported_data = json.loads('${text.replace(/'/g, "\\'")}')
+global_persistent_ai.from_dict(imported_data)
+print(f"Imported {len(imported_data.get('agents', {}))} tasks")
+                `);
+                
+                await savePersistentData();
+                updateMemoryStats();
+                
+                // Enable controls
+                if (Object.keys(data.agents).length > 0) {
+                    document.getElementById('continue-training').disabled = false;
+                    document.getElementById('test-ai').disabled = false;
+                    document.getElementById('show-progress').disabled = false;
+                }
+                
+                log('📥 AI memory imported successfully!');
+                log(`   Imported ${Object.keys(data.agents).length} trained tasks`);
+                
+            } catch (error) {
+                log(`❌ Import error: ${error.message}`);
+            }
+            
+            // Reset file input
+            event.target.value = '';
+        }
+
+        async function clearMemory() {
+            if (!confirm('⚠️ This will permanently delete all AI memory. Are you sure?')) {
+                return;
+            }
+            
+            try {
+                // Clear IndexedDB
+                if (memoryDB) {
+                    const transaction = memoryDB.transaction(['aiData'], 'readwrite');
+                    const store = transaction.objectStore('aiData');
+                    await store.clear();
+                }
+                
+                // Reset Python AI
+                pyodide.runPython(`
+global_persistent_ai = PersistentLearningAI()
+print("AI memory cleared")
+                `);
+                
+                // Reset UI state
+                currentTrainingTask = null;
+                persistentData.lastSaved = null;
+                
+                document.getElementById('continue-training').disabled = true;
+                document.getElementById('test-ai').disabled = true;
+                document.getElementById('show-progress').disabled = true;
+                document.getElementById('visualization').style.display = 'none';
+                
+                updateMemoryStats();
+                log('🗑️ All AI memory permanently cleared');
+                
+            } catch (error) {
+                log(`❌ Clear error: ${error.message}`);
+            }
+        }
+
         async function startTraining() {
             if (isTraining) return;
             
@@ -1060,39 +1566,37 @@ print("AI Learning System initialized successfully!")
             
             const startBtn = document.getElementById('start-training');
             startBtn.disabled = true;
-            startBtn.innerHTML = '<span class="loading"></span> Training Real AI...';
+            startBtn.innerHTML = '<span class="loading"></span> Training Persistent AI...';
             
             isTraining = true;
-            currentTrainingTask = taskType;
+            const taskName = `${taskType}_${gridSize}x${gridSize}`;
+            currentTrainingTask = taskName;
             
             try {
-                log(`🎯 Creating ${taskType} task...`);
+                log(`🎯 Creating persistent ${taskType} task...`);
                 
                 if (taskType === 'navigation') {
-                    // Create navigation task
                     pyodide.runPython(`
 import sys
 from io import StringIO
 
-# Capture output
 old_stdout = sys.stdout
 sys.stdout = captured_output = StringIO()
 
-# Create navigation environment
-grid_env = GridWorldEnvironment(width=${gridSize}, height=${gridSize})
-global_ai.add_task("navigation", grid_env)
-current_env = grid_env
+# Check if task already exists
+task_name = "${taskName}"
+if task_name not in global_persistent_ai.agents:
+    grid_env = GridWorldEnvironment(width=${gridSize}, height=${gridSize})
+    global_persistent_ai.add_task(task_name, grid_env)
+    print(f"Created new task: {task_name}")
+else:
+    print(f"Continuing existing task: {task_name}")
 
-# Get the output
+current_env = global_persistent_ai.environments[task_name]
 output = captured_output.getvalue()
 sys.stdout = old_stdout
                     `);
-                    
-                    const output = pyodide.runPython("output");
-                    log(output);
-                    
                 } else if (taskType === 'sorting') {
-                    // Create sorting task
                     pyodide.runPython(`
 import sys
 from io import StringIO
@@ -1100,35 +1604,47 @@ from io import StringIO
 old_stdout = sys.stdout
 sys.stdout = captured_output = StringIO()
 
-sorting_env = TaskEnvironment(task_type="sorting")
-global_ai.add_task("sorting", sorting_env)
-current_env = sorting_env
+task_name = "${taskName}"
+if task_name not in global_persistent_ai.agents:
+    sorting_env = TaskEnvironment(task_type="sorting")
+    global_persistent_ai.add_task(task_name, sorting_env)
+    print(f"Created new task: {task_name}")
+else:
+    print(f"Continuing existing task: {task_name}")
 
+current_env = global_persistent_ai.environments[task_name]
 output = captured_output.getvalue()
 sys.stdout = old_stdout
                     `);
-                    
-                    const output = pyodide.runPython("output");
-                    log(output);
                 }
                 
-                // Show initial environment
+                const output = pyodide.runPython("output");
+                log(output);
+                
+                // Show current AI state
+                const currentState = pyodide.runPython(`
+agent = global_persistent_ai.agents["${taskName}"]
+f"Current state: {len(agent.episode_rewards)} episodes trained, exploration rate: {agent.epsilon:.3f}"
+                `);
+                log(`📊 ${currentState}`);
+                
                 updateVisualization();
+                log(`🚀 Starting persistent training for ${episodes} episodes...`);
                 
-                log(`🚀 Starting real neural network training for ${episodes} episodes...`);
-                
-                // Show progress bar
                 const progressContainer = document.getElementById('progress-container');
-                const progressFill = document.getElementById('progress-fill');
-                const progressText = document.getElementById('progress-text');
                 progressContainer.style.display = 'block';
                 
-                // Start training with progress updates
-                await trainWithProgress(taskType, episodes);
+                await trainWithProgress(taskName, episodes);
                 
-                log('✅ Training complete! Neural network has learned the task.');
+                // Auto-save after training
+                await savePersistentData();
+                
+                log('✅ Training complete and saved to persistent memory!');
                 document.getElementById('test-ai').disabled = false;
                 document.getElementById('show-progress').disabled = false;
+                document.getElementById('continue-training').disabled = false;
+                
+                updateMemoryStats();
                 
             } catch (error) {
                 log(`❌ Training error: ${error.message}`);
@@ -1136,17 +1652,29 @@ sys.stdout = old_stdout
             } finally {
                 isTraining = false;
                 startBtn.disabled = false;
-                startBtn.innerHTML = '🚀 Start Real AI Training';
+                startBtn.innerHTML = '🚀 Start Persistent Training';
             }
         }
 
-        async function trainWithProgress(taskType, episodes) {
+        async function continueTraining() {
+            if (!currentTrainingTask) {
+                log('❌ No current task to continue!');
+                return;
+            }
+            
+            const episodes = parseInt(document.getElementById('episodes').value);
+            log(`🔄 Continuing training on ${currentTrainingTask} for ${episodes} more episodes...`);
+            
+            // Use same training logic but for existing task
+            await startTraining();
+        }
+
+        async function trainWithProgress(taskName, episodes) {
             return new Promise((resolve, reject) => {
                 let episode = 0;
                 
                 const trainStep = () => {
                     try {
-                        // Train for a batch of episodes
                         const batchSize = Math.min(10, episodes - episode);
                         
                         pyodide.runPython(`
@@ -1156,9 +1684,9 @@ from io import StringIO
 old_stdout = sys.stdout
 sys.stdout = captured_output = StringIO()
 
-# Train for ${batchSize} episodes
-agent = global_ai.agents["${taskType}"]
-environment = global_ai.environments["${taskType}"]
+# Train for ${batchSize} episodes on persistent task
+agent = global_persistent_ai.agents["${taskName}"]
+environment = global_persistent_ai.environments["${taskName}"]
 
 for ep in range(${batchSize}):
     state = environment.reset()
@@ -1181,6 +1709,9 @@ for ep in range(${batchSize}):
     agent.episode_steps.append(steps)
     agent.replay()
 
+# Update system stats
+global_persistent_ai.system_stats['total_episodes'] += ${batchSize}
+
 # Get recent performance
 recent_rewards = agent.episode_rewards[-10:] if len(agent.episode_rewards) >= 10 else agent.episode_rewards
 avg_reward = sum(recent_rewards) / len(recent_rewards) if recent_rewards else 0
@@ -1192,14 +1723,15 @@ sys.stdout = old_stdout
                         episode += batchSize;
                         const progress = (episode / episodes) * 100;
                         const avgReward = pyodide.runPython("avg_reward");
+                        const totalEpisodes = pyodide.runPython(`len(global_persistent_ai.agents["${taskName}"].episode_rewards)`);
                         
                         // Update progress
                         document.getElementById('progress-fill').style.width = `${progress}%`;
                         document.getElementById('progress-text').textContent = 
-                            `Episode ${episode}/${episodes} - Recent Avg Reward: ${avgReward.toFixed(2)}`;
+                            `Episode ${episode}/${episodes} (Total: ${totalEpisodes}) - Avg: ${avgReward.toFixed(2)}`;
                         
                         if (episode % 50 === 0) {
-                            log(`📊 Episode ${episode}: Average reward = ${avgReward.toFixed(2)}`);
+                            log(`📊 Episode ${episode}: Average reward = ${avgReward.toFixed(2)} (Total trained: ${totalEpisodes})`);
                             updateVisualization();
                         }
                         
@@ -1229,7 +1761,7 @@ sys.stdout = old_stdout
             testBtn.innerHTML = '<span class="loading"></span> Testing...';
             
             try {
-                log('🎯 Testing trained AI agent...');
+                log('🎯 Testing persistent AI agent...');
                 
                 pyodide.runPython(`
 import sys
@@ -1238,8 +1770,8 @@ from io import StringIO
 old_stdout = sys.stdout
 sys.stdout = captured_output = StringIO()
 
-# Test the trained agent
-test_results, avg_reward = global_ai.demonstrate_task("${currentTrainingTask}", episodes=3)
+# Test the persistent agent
+test_results, avg_reward = global_persistent_ai.demonstrate_task("${currentTrainingTask}", episodes=3)
 
 output = captured_output.getvalue()
 sys.stdout = old_stdout
@@ -1250,10 +1782,27 @@ sys.stdout = old_stdout
                 const avgReward = pyodide.runPython("avg_reward");
                 
                 log(output);
-                log(`🏆 Average test performance: ${avgReward.toFixed(2)}`);
+                log(`🏆 Persistent AI performance: ${avgReward.toFixed(2)}`);
+                
+                // Show additional persistent stats
+                const persistentStats = pyodide.runPython(`
+agent = global_persistent_ai.agents["${currentTrainingTask}"]
+{
+    'total_episodes': len(agent.episode_rewards),
+    'sessions': len(agent.sessions),
+    'exploration_rate': agent.epsilon,
+    'best_ever': max(agent.episode_rewards) if agent.episode_rewards else 0
+}
+                `);
+                
+                log(`📈 Persistent Stats:`);
+                log(`   • Total episodes: ${persistentStats.get('total_episodes')}`);
+                log(`   • Training sessions: ${persistentStats.get('sessions')}`);
+                log(`   • Best performance: ${persistentStats.get('best_ever').toFixed(2)}`);
+                log(`   • Exploration rate: ${persistentStats.get('exploration_rate').toFixed(3)}`);
                 
                 // Show test visualization
-                if (currentTrainingTask === 'navigation') {
+                if (currentTrainingTask.includes('navigation')) {
                     await visualizeTestRun(testResults);
                 }
                 
@@ -1262,7 +1811,7 @@ sys.stdout = old_stdout
                 console.error(error);
             } finally {
                 testBtn.disabled = false;
-                testBtn.innerHTML = '🎯 Test Trained AI';
+                testBtn.innerHTML = '🎯 Test Persistent AI';
             }
         }
 
@@ -1273,26 +1822,38 @@ sys.stdout = old_stdout
             }
             
             try {
-                log('📊 Analyzing learning progress...');
+                log('📊 Analyzing persistent learning progress...');
                 
                 pyodide.runPython(`
-progress = global_ai.get_learning_progress("${currentTrainingTask}")
+progress = global_persistent_ai.get_learning_progress("${currentTrainingTask}")
                 `);
                 
                 const progress = pyodide.runPython("progress.to_py()");
                 
-                log(`📈 Training Statistics:`);
-                log(`   • Episodes trained: ${progress.get('episodes_trained')}`);
+                log(`📈 Persistent Training Analysis:`);
+                log(`   • Total episodes: ${progress.get('episodes_trained')}`);
+                log(`   • Training sessions: ${progress.get('total_sessions')}`);
                 log(`   • Recent avg reward: ${progress.get('recent_avg_reward').toFixed(2)}`);
-                log(`   • Best reward: ${progress.get('best_reward').toFixed(2)}`);
-                log(`   • Current exploration rate: ${progress.get('exploration_rate').toFixed(3)}`);
+                log(`   • Best reward ever: ${progress.get('best_reward').toFixed(2)}`);
+                log(`   • Session avg performance: ${progress.get('avg_session_performance').toFixed(2)}`);
+                log(`   • Current exploration: ${progress.get('exploration_rate').toFixed(3)}`);
+                
+                // Show session history
+                const sessions = progress.get('sessions');
+                if (sessions && sessions.length > 0) {
+                    log('📅 Training Session History:');
+                    sessions.slice(-5).forEach((session, i) => {
+                        const date = new Date(session.timestamp * 1000).toLocaleDateString();
+                        log(`   Session ${sessions.length - 4 + i}: ${session.episodes} episodes, avg ${session.avg_reward.toFixed(2)} (${date})`);
+                    });
+                }
                 
                 // Show learning curve
                 const rewards = progress.get('all_rewards');
                 if (rewards && rewards.length > 0) {
-                    log('📉 Learning curve (last 20 episodes):');
+                    log('📉 Recent learning curve (last 20 episodes):');
                     const recent = rewards.slice(-20);
-                    const curve = recent.map((r, i) => `Ep ${rewards.length - 20 + i + 1}: ${r.toFixed(1)}`).join(', ');
+                    const curve = recent.map((r, i) => `${rewards.length - 20 + i + 1}:${r.toFixed(1)}`).join(', ');
                     log(`   ${curve}`);
                 }
                 
@@ -1306,10 +1867,10 @@ progress = global_ai.get_learning_progress("${currentTrainingTask}")
             if (!currentTrainingTask) return;
             
             try {
-                if (currentTrainingTask === 'navigation') {
+                if (currentTrainingTask.includes('navigation')) {
                     // Get current environment state
                     pyodide.runPython(`
-env = global_ai.environments["navigation"]
+env = global_persistent_ai.environments["${currentTrainingTask}"]
 grid_data = env.render()
 agent_pos = env.agent_pos
 goal_pos = env.goal_pos
@@ -1346,7 +1907,16 @@ walls = env.walls
                     
                     gridDisplay.innerHTML = gridHTML;
                     
-                    // Update metrics
+                    // Update metrics with persistent data
+                    const agent = pyodide.runPython(`
+agent = global_persistent_ai.agents["${currentTrainingTask}"]
+{
+    'total_episodes': len(agent.episode_rewards),
+    'sessions': len(agent.sessions),
+    'epsilon': agent.epsilon
+}
+                    `);
+                    
                     metrics.innerHTML = `
                         <div class="metric-row">
                             <span>Agent Position:</span>
@@ -1357,8 +1927,16 @@ walls = env.walls
                             <span>(${goalPos[0]}, ${goalPos[1]})</span>
                         </div>
                         <div class="metric-row">
-                            <span>Walls:</span>
-                            <span>${walls.length} obstacles</span>
+                            <span>Total Episodes:</span>
+                            <span>${agent.total_episodes}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span>Training Sessions:</span>
+                            <span>${agent.sessions}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span>Exploration Rate:</span>
+                            <span>${agent.epsilon.toFixed(3)}</span>
                         </div>
                     `;
                 }
@@ -1370,7 +1948,7 @@ walls = env.walls
         async function visualizeTestRun(testResults) {
             if (!testResults || testResults.length === 0) return;
             
-            log('🎬 Visualizing AI test run...');
+            log('🎬 Visualizing persistent AI test run...');
             
             // Show the first test episode step by step
             const episode = testResults[0];
@@ -1382,7 +1960,7 @@ walls = env.walls
                 if (pos) {
                     // Update environment position
                     pyodide.runPython(`
-env = global_ai.environments["navigation"]
+env = global_persistent_ai.environments["${currentTrainingTask}"]
 env.agent_pos = [${pos[0]}, ${pos[1]}]
                     `);
                     
@@ -1395,38 +1973,27 @@ env.agent_pos = [${pos[0]}, ${pos[1]}]
                 }
             }
             
-            log('✅ Test visualization complete!');
-        }
-
-        function resetDemo() {
-            pyodide.runPython(`
-# Reset the AI system
-global_ai = LearningAI()
-print("AI system reset")
-            `);
-            
-            currentTrainingTask = null;
-            isTraining = false;
-            
-            document.getElementById('output').innerHTML = `
-                <div style="color: #4ade80; font-weight: bold;">🤖 Real AI Learning System Console</div>
-                <div style="color: #94a3b8; margin-bottom: 1rem;">System reset - ready for new task...</div>
-                <div>Real Python neural networks ready for training!</div>
-            `;
-            
-            document.getElementById('progress-container').style.display = 'none';
-            document.getElementById('test-ai').disabled = true;
-            document.getElementById('show-progress').disabled = true;
-            document.getElementById('visualization').style.display = 'none';
-            document.getElementById('start-training').disabled = false;
-            document.getElementById('start-training').innerHTML = '🚀 Start Real AI Training';
-            
-            log('🔄 Demo reset - AI system reinitialized');
+            log('✅ Persistent AI test visualization complete!');
         }
 
         function scrollToDemo() {
             document.getElementById('demo').scrollIntoView({ behavior: 'smooth' });
         }
+
+        // Auto-save periodically during training
+        setInterval(async () => {
+            if (isTraining && currentTrainingTask) {
+                await savePersistentData();
+                updateMemoryStats();
+            }
+        }, 30000); // Auto-save every 30 seconds during training
+
+        // Save on page unload
+        window.addEventListener('beforeunload', async (event) => {
+            if (currentTrainingTask) {
+                await savePersistentData();
+            }
+        });
 
         // Task type change handler
         document.getElementById('task-type').addEventListener('change', function() {

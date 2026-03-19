@@ -1,23 +1,35 @@
-// chat.js - Main chat logic
+// chat.js - Main chat logic with neural network learning
+
+// Initialize the AI when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    // Show loading message
+    addMessage("🧠 Initializing neural networks...", 'bot');
+    setTimeout(() => {
+        addMessage("Ready to learn! Let's have a conversation.", 'bot');
+    }, 1000);
+});
 
 function sendMessage() {
     const input = document.getElementById('userInput');
     const message = input.value.trim();
     
     if (message) {
-        // Add user message to chat
         addMessage(message, 'user');
         input.value = '';
         
-        // Show typing indicator
         showTypingIndicator();
         
-        // Get AI response
+        // Process with neural network
         setTimeout(() => {
             removeTypingIndicator();
-            const response = aiBot.getResponse(message);
+            
+            // Get response from neural network
+            const response = conversationAI.processInput(message);
             addMessage(response, 'bot');
-        }, 500); // Small delay to feel natural
+            
+            // Train on this interaction
+            conversationAI.learn(message, response);
+        }, 500);
     }
 }
 
@@ -27,8 +39,6 @@ function addMessage(text, sender) {
     messageDiv.className = `message ${sender}`;
     messageDiv.textContent = text;
     messagesDiv.appendChild(messageDiv);
-    
-    // Scroll to bottom
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
@@ -37,7 +47,7 @@ function showTypingIndicator() {
     const typingDiv = document.createElement('div');
     typingDiv.id = 'typingIndicator';
     typingDiv.className = 'message bot';
-    typingDiv.textContent = '🤔 Thinking...';
+    typingDiv.textContent = '🧠 Processing...';
     messagesDiv.appendChild(typingDiv);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
@@ -49,10 +59,9 @@ function removeTypingIndicator() {
     }
 }
 
-// Handle Enter key
 document.getElementById('userInput').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
         sendMessage();
-        e.preventDefault(); // Prevent form submission
+        e.preventDefault();
     }
 });

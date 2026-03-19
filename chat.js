@@ -1,35 +1,55 @@
-// chat.js - Main chat logic with neural network learning
+// chat.js - Fixed integration with all systems
 
-// Initialize the AI when page loads
+// Initialize the AI
+let smartAI;
+
 document.addEventListener('DOMContentLoaded', () => {
-    // Show loading message
-    addMessage("🧠 Initializing neural networks...", 'bot');
-    setTimeout(() => {
-        addMessage("Ready to learn! Let's have a conversation.", 'bot');
-    }, 1000);
+    // Create the smart AI instance
+    smartAI = new SmartAIBrain();
+    
+    // Try to load previous state
+    smartAI.loadState();
+    
+    // Welcome message
+    addMessage("🧠 Hello! I'm your smart AI with memory systems. I can remember our conversations and learn about you over time. What would you like to talk about?", 'bot');
+    
+    console.log("AI Systems initialized:", smartAI.getStats());
 });
 
-function sendMessage() {
+async function sendMessage() {
     const input = document.getElementById('userInput');
     const message = input.value.trim();
     
-    if (message) {
-        addMessage(message, 'user');
-        input.value = '';
-        
-        showTypingIndicator();
-        
-        // Process with neural network
-        setTimeout(() => {
+    if (!message) return;
+    
+    // Add user message to chat
+    addMessage(message, 'user');
+    input.value = '';
+    
+    // Show typing indicator
+    showTypingIndicator();
+    
+    try {
+        // Process with AI (small delay for natural feel)
+        setTimeout(async () => {
+            // Get AI response
+            const result = await smartAI.chat(message);
+            
+            // Remove typing indicator and add response
             removeTypingIndicator();
+            addMessage(result.response, 'bot');
             
-            // Get response from neural network
-            const response = conversationAI.processInput(message);
-            addMessage(response, 'bot');
-            
-            // Train on this interaction
-            conversationAI.learn(message, response);
+            // Auto-save state periodically
+            if (Math.random() > 0.7) {
+                smartAI.saveState();
+                console.log("AI state saved");
+            }
         }, 500);
+        
+    } catch (error) {
+        console.error("AI Error:", error);
+        removeTypingIndicator();
+        addMessage("I encountered an error processing that. Let's try again!", 'bot');
     }
 }
 
@@ -44,10 +64,12 @@ function addMessage(text, sender) {
 
 function showTypingIndicator() {
     const messagesDiv = document.getElementById('messages');
+    if (document.getElementById('typingIndicator')) return;
+    
     const typingDiv = document.createElement('div');
     typingDiv.id = 'typingIndicator';
     typingDiv.className = 'message bot';
-    typingDiv.textContent = '🧠 Processing...';
+    typingDiv.textContent = '🧠 Thinking...';
     messagesDiv.appendChild(typingDiv);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
@@ -59,9 +81,26 @@ function removeTypingIndicator() {
     }
 }
 
+// Handle Enter key
 document.getElementById('userInput').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
         sendMessage();
         e.preventDefault();
     }
 });
+
+// Add a stats command (hidden feature)
+window.showStats = function() {
+    if (smartAI) {
+        const stats = smartAI.getStats();
+        const statsMessage = `
+📊 **AI Stats:**
+• Conversations: ${stats.conversationLength}
+• Topics learned: ${stats.topicsLearned}
+• Facts about you: ${stats.factsLearned}
+• Emotional states tracked: ${stats.emotionalStates}
+• Long-term memories: ${stats.memories}
+        `;
+        addMessage(statsMessage, 'bot');
+    }
+};

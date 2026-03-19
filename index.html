@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Chatbot</title>
+    <title>Simple AI Chat - Build from Scratch</title>
     <style>
         * {
             margin: 0;
@@ -108,34 +108,8 @@
         </div>
     </div>
 
-    <script>
-        function sendMessage() {
-            const input = document.getElementById('userInput');
-            const message = input.value.trim();
-            
-            if (message) {
-                // Add user message to chat
-                addMessage(message, 'user');
-                input.value = '';
-                
-                // Here's where we'll build the AI step by step!
-                // For now, just echo back
-                setTimeout(() => {
-                    addMessage("I heard you say: " + message, 'bot');
-                }, 500);
-            }
-        }
-        
-        function addMessage(text, sender) {
-            const messagesDiv = document.getElementById('messages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${sender}`;
-            messageDiv.textContent = text;
-            messagesDiv.appendChild(messageDiv);
-            
-            // Scroll to bottom
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-    </script>
+    <script src="data.js"></script>
+    <script src="training.js"></script>
+    <script src="chat.js"></script>
 </body>
 </html>
